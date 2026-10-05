@@ -121,6 +121,17 @@ header.top{position:sticky;top:0;z-index:50;background:rgba(13,15,22,.86);backdr
 .tour-done h2{font-size:26px;font-weight:900;color:var(--gold)}
 .tour-done p{color:var(--dim);font-size:14px;margin-top:6px}
 .tour-done .btns{display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap}
+.vote-badge{font-weight:900;color:var(--accent2);background:rgba(0,210,255,.12);padding:2px 10px;border-radius:999px}
+.tour-banner{background:rgba(124,92,255,.10);border:1px solid rgba(124,92,255,.4);border-radius:14px;padding:14px 16px;font-size:13px;color:var(--dim);margin-top:14px;text-align:center;line-height:1.7}
+.tour-banner b{color:var(--text)}
+.tour-results{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-top:14px}
+.tour-results h3{font-size:14px;font-weight:800;margin-bottom:10px;color:var(--dim)}
+.tr-row{display:flex;gap:8px;align-items:baseline;font-size:13px;padding:6px 2px;border-bottom:1px dashed var(--line)}
+.tr-row:last-child{border-bottom:none}
+.tr-no{color:var(--faint);font-size:11px;flex:none;font-variant-numeric:tabular-nums}
+.tr-txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tr-txt b{color:var(--gold)}
+.tr-votes{color:var(--dim);font-size:12px;flex:none}
 @media (max-width:560px){
   .tour-match{grid-template-columns:1fr;gap:8px}
   .tour-vs{height:34px}
@@ -585,107 +596,298 @@ function renderCurrent(){
   else if(h.startsWith("#/tour/")){tourGender=h.slice(7);if(!tour||tour.gender!==tourGender){loadTour(tourGender);}else{renderTour();}}
 }
 
-/* ============ tournament (2 pick 1 until champion) ============ */
-const TOUR_KEY="kolRating.tour.";
-let tour=null,tourGender="male";
-function tourLoad(g){try{const t=JSON.parse(localStorage.getItem(TOUR_KEY+g));return (t&&t.v===1&&t.gender===g)?t:null;}catch(e){return null;}}
-function tourSave(){if(tour)try{localStorage.setItem(TOUR_KEY+tour.gender,JSON.stringify(tour));}catch(e){}}
+/* ============ tournament (雲端即時同步 2 揀 1 淘汰賽) ============ */
+const TOUR_KEY="kolRating.tour.";            // 舊版本機淘汰賽（只作一次性匯入來源）
+const TOUR_COL="tournaments";                // 雲端 collection（每性別一個 doc：male / female）
+const TOUR_CLOSE_VOTES=3;                    // 一個對局滿 3 票自動鎖定（多數者贏）
+let tour=null,tourGender="male",tourUnsub=null;
+
+function tourLoad(g){try{const t=JSON.parse(localStorage.getItem(TOUR_KEY+g));return (t&&(t.v===1||t.v===2)&&t.gender===g)?t:null;}catch(e){return null;}}
+function tourSave(){if(tour)try{localStorage.setItem(TOUR_KEY+tour.gender,JSON.stringify(tour))}catch(e){}}
 function shuffle(a){const x=a.slice();for(let i=x.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[x[i],x[j]]=[x[j],x[i]];}return x;}
-function loadTour(g){
-  const t=tourLoad(g);
-  if(t){tour=t;}else{tourStart(g);}
-  renderTour();
-}
-function tourStart(g){
-  const ids=[...new Set(state.entries.filter(e=>(e.gender||"male")===g).map(e=>e.id))];
-  tour={v:1,gender:g,pool:shuffle(ids),nextPool:[],matchNo:0,champion:null,results:[]};
-  if(ids.length>=2)advanceTour();
-  tourSave();renderTour();
-}
-function tourPick(id){
-  if(!tour||!tour.current)return;
-  if(id!==tour.current[0]&&id!==tour.current[1])return;
-  const [a,b]=tour.current;
-  tour.results.push({a,b,w:id,at:Date.now()});
-  tour.matchNo++;tour.nextPool.push(id);
-  advanceTour();
-  tourSave();renderTour();
-}
-function advanceTour(){
+function advanceTour(t){
+  t=t||tour;
   for(;;){
-    if(tour.pool.length>=2){tour.current=[tour.pool.shift(),tour.pool.shift()];return;}
-    if(tour.pool.length===1){tour.nextPool.push(tour.pool.shift());continue;}
-    if(tour.nextPool.length>=2){tour.pool=tour.nextPool;tour.nextPool=[];continue;}
-    if(tour.nextPool.length===1){tour.champion=tour.nextPool.shift();tour.current=null;return;}
-    tour.champion=null;tour.current=null;return;
+    if(t.pool.length>=2){t.current=[t.pool.shift(),t.pool.shift()];return;}
+    if(t.pool.length===1){t.nextPool.push(t.pool.shift());continue;}
+    if(t.nextPool.length>=2){t.pool=t.nextPool;t.nextPool=[];continue;}
+    if(t.nextPool.length===1){t.champion=t.nextPool.shift();t.current=null;return;}
+    t.champion=null;t.current=null;return;
   }
 }
-function tourReset(){const g=tour?tour.gender:tourGender;tourStart(g);}
+function tourToFire(t){
+  return {v:2,gender:t.gender,pool:t.pool||[],nextPool:t.nextPool||[],
+    current:t.current||null,champion:t.champion||null,matchNo:t.matchNo||0,
+    currentVotes:(t.currentVotes||[]).map(x=>({v:x.v,w:x.w,at:x.at})),
+    results:(t.results||[]).map(r=>({a:r.a,b:r.b,w:r.w||null,at:r.at||Date.now(),votes:(r.votes||[]).map(x=>({v:x.v,w:x.w,at:x.at}))})),
+    startedAt:t.startedAt||Date.now(),updatedAt:Date.now()};
+}
+function tourFromFire(d){
+  const x=d.data()||{};
+  return {v:2,gender:x.gender||"male",pool:x.pool||[],nextPool:x.nextPool||[],
+    current:x.current||null,champion:x.champion||null,matchNo:x.matchNo||0,
+    currentVotes:(x.currentVotes||[]).map(v=>({v:v.v,w:v.w,at:v.at})),
+    results:(x.results||[]).map(r=>({a:r.a,b:r.b,w:r.w||null,at:r.at||Date.now(),votes:(r.votes||[]).map(v=>({v:v.v,w:v.w,at:v.at}))})),
+    startedAt:x.startedAt||Date.now()};
+}
+function addVote(votes,voter,pick,at){
+  votes=Array.isArray(votes)?votes:[];
+  const i=votes.findIndex(x=>x.v===voter);
+  if(i>=0)votes[i]={v:voter,w:pick,at};else votes.push({v:voter,w:pick,at});
+  return votes;
+}
+function majorityPick(a,b,votes){
+  let ca=0,cb=0,fa=Infinity,fb=Infinity;
+  (votes||[]).forEach(x=>{
+    if(x.w===a){ca++;fa=Math.min(fa,x.at||Infinity);}
+    else if(x.w===b){cb++;fb=Math.min(fb,x.at||Infinity);}
+  });
+  if(ca>cb)return a;if(cb>ca)return b;
+  return (fa<=fb)?a:b;
+}
+function tourLockReady(t){return t&&t.current&&Array.isArray(t.currentVotes)&&t.currentVotes.length>0;}
+function loadTourLocal(g){
+  const t=tourLoad(g);
+  if(t){tour=t;}else{tourStartLocal(g);}
+  renderTour();
+}
+function tourStartLocal(g){
+  const ids=[...new Set(state.entries.filter(e=>(e.gender||"male")===g).map(e=>e.id))];
+  tour={v:2,gender:g,pool:shuffle(ids),nextPool:[],matchNo:0,champion:null,results:[],currentVotes:[],startedAt:Date.now()};
+  if(ids.length>=2)advanceTour(tour);
+  tourSave();renderTour();
+}
+async function tourStart(g){
+  if(!checkRoom())return;
+  if(!fbReady){tourStartLocal(g);return;}
+  const ids=[...new Set(state.entries.filter(e=>(e.gender||"male")===g).map(e=>e.id))];
+  if(ids.length<2){toast("人數唔夠，開唔到賽","err");renderTour();return;}
+  const ref=db.collection(TOUR_COL).doc(g);
+  let snap=null;
+  try{snap=await ref.get();}catch(e){snap=null;}
+  if(snap&&snap.exists){
+    const cur=tourFromFire(snap);
+    if(cur.results&&cur.results.length){
+      if(!confirm("雲端已經有場淘汰賽（有人玩緊／已完賽）。重新開始會清走所有人嘅賽果同投票，確定？"))return;
+    }
+  }
+  const t={v:2,gender:g,pool:shuffle(ids),nextPool:[],matchNo:0,champion:null,results:[],currentVotes:[],startedAt:Date.now()};
+  advanceTour(t);
+  try{await ref.set(tourToFire(t));}catch(e){console.error("[tour] start fail",e);toast("開賽寫入雲端失敗，稍後再試","err");return;}
+  tour=t;toast("新淘汰賽已開始，即時同步俾所有人","ok");
+}
+function loadTour(g){
+  tourGender=g;
+  if(tourUnsub){tourUnsub();tourUnsub=null;}
+  if(!fbReady){loadTourLocal(g);return;}
+  tourUnsub=db.collection(TOUR_COL).doc(g).onSnapshot(snap=>{
+    if(snap.exists){tour=tourFromFire(snap);renderTour();}
+    else{tour=null;renderTour();}
+  },err=>{
+    console.error("[tour] sync fail",err);
+    toast("淘汰賽雲端同步失敗，改用本機","err");
+    tourUnsub=null;
+    loadTourLocal(g);
+  });
+}
+async function tourPick(id){
+  if(!tour||!tour.current)return;
+  if(id!==tour.current[0]&&id!==tour.current[1])return;
+  if(!checkRoom())return;
+  if(!fbReady){
+    tour.currentVotes=addVote(tour.currentVotes,state.voterId,id,Date.now());
+    const [a,b]=tour.current;
+    const w=majorityPick(a,b,tour.currentVotes);
+    tour.results.push({a,b,w,votes:tour.currentVotes,at:Date.now()});
+    tour.matchNo++;tour.nextPool.push(w);tour.currentVotes=[];
+    advanceTour(tour);tourSave();renderTour();return;
+  }
+  const ref=db.collection(TOUR_COL).doc(tour.gender);
+  let out="";
+  try{
+    out=await db.runTransaction(async tx=>{
+      const snap=await tx.get(ref);
+      if(!snap.exists)return "NO_DOC";
+      const t=tourFromFire(snap);
+      if(!t.current||t.champion)return "LOCKED";
+      const [a,b]=t.current;
+      if(id!==a&&id!==b)return "STALE";
+      const votes=addVote(t.currentVotes,state.voterId,id,Date.now());
+      if(votes.length>=TOUR_CLOSE_VOTES){
+        const w=majorityPick(a,b,votes);
+        t.results.push({a,b,w,votes,at:Date.now()});
+        t.matchNo++;t.nextPool.push(w);t.currentVotes=[];
+        advanceTour(t);t.updatedAt=Date.now();
+        tx.set(ref,tourToFire(t));
+        return "ADVANCED";
+      }
+      t.currentVotes=votes;t.updatedAt=Date.now();
+      tx.set(ref,tourToFire(t));
+      return "VOTED";
+    });
+  }catch(err){console.error("[tour] vote fail",err);toast("投票寫入失敗，稍後再試","err");return;}
+  if(out==="LOCKED"||out==="STALE")toast("呢場已經鎖定／更新咗，睇最新對局","err");
+  renderTour();
+}
+async function tourLock(){
+  if(!tour||!tour.current)return;
+  if(!tourLockReady(tour)){toast("未有人投票，投咗先可以鎖定","err");return;}
+  if(!checkRoom())return;
+  if(!fbReady){
+    const [a,b]=tour.current;
+    const w=majorityPick(a,b,tour.currentVotes);
+    tour.results.push({a,b,w,votes:tour.currentVotes,at:Date.now()});
+    tour.matchNo++;tour.nextPool.push(w);tour.currentVotes=[];
+    advanceTour(tour);tourSave();renderTour();return;
+  }
+  const ref=db.collection(TOUR_COL).doc(tour.gender);
+  try{
+    await db.runTransaction(async tx=>{
+      const snap=await tx.get(ref);
+      if(!snap.exists)return "NO_DOC";
+      const t=tourFromFire(snap);
+      if(!t.current||t.champion)return "LOCKED";
+      const votes=t.currentVotes||[];
+      if(!votes.length)return "NO_VOTES";
+      const [a,b]=t.current;
+      const w=majorityPick(a,b,votes);
+      t.results.push({a,b,w,votes,at:Date.now()});
+      t.matchNo++;t.nextPool.push(w);t.currentVotes=[];
+      advanceTour(t);t.updatedAt=Date.now();
+      tx.set(ref,tourToFire(t));
+      return "ADVANCED";
+    });
+  }catch(err){console.error("[tour] lock fail",err);toast("鎖定失敗，稍後再試","err");return;}
+  renderTour();
+}
+function tourImportLocal(g){
+  const localT=tourLoad(g);
+  if(!localT){toast("冇舊版本機記錄可以匯入","err");return;}
+  if(!checkRoom())return;
+  db.collection(TOUR_COL).doc(g).set(tourToFire(localT)).then(()=>{
+    toast("舊版淘汰賽已匯入雲端","ok");
+  }).catch(err=>{console.error("[tour] import fail",err);toast("匯入失敗，稍後再試","err");});
+}
+function tourDiscardLocal(g){
+  try{localStorage.removeItem(TOUR_KEY+g);}catch(e){}
+  try{sessionStorage.setItem("tour.import.dismiss."+g,"1");}catch(e){}
+  tour=null;renderTour();
+}
+function tourStartScreenHTML(g,banner){
+  const gLabel=g==="female"?"女生":"男生";
+  const totalIn=state.entries.filter(e=>(e.gender||"male")===g).length;
+  if(totalIn<2){
+    return `<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍 · 雲端即時同步</span></div><div class="empty"><h3>人數唔夠</h3><p>而家得 ${totalIn} 位${gLabel}同學，要最少 2 位先開到賽。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;
+  }
+  return `<div class="tour-wrap">
+    <div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍 · 雲端即時同步</span></div>
+    ${banner||""}
+    <div class="empty">
+      <h3>未有雲端淘汰賽</h3>
+      <p>而家有 ${totalIn} 位${gLabel}同學可以玩。開賽之後，每場對決大家都會即時見到同一份賽果。</p>
+      <button class="btn btn-primary" onclick="tourStart('${g}')">開始淘汰賽</button>
+      <div class="tour-hint" style="margin-top:12px">㩒卡片投你一票（每人一票，可以改）· 滿 ${TOUR_CLOSE_VOTES} 票自動晉級（多數者贏）· 投完亦可以㩒「鎖定賽果」即刻晉級。</div>
+    </div>
+  </div>`;
+}
 function renderTour(){
   const v=$("#view-tour");
   const g=tour?tour.gender:tourGender;
   const gLabel=g==="female"?"女生":"男生";
-  if(!tour){v.innerHTML=`<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍</span></div><div class="empty"><h3>冇得玩</h3><p>要最少 2 位${gLabel}同學先可以開淘汰賽。去排行榜加人先啦。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;return;}
-  let guard=0;
-  while(tour.current&&guard++<100){
-    const ea=state.entries.find(x=>x.id===tour.current[0]);
-    const eb=state.entries.find(x=>x.id===tour.current[1]);
-    if(ea&&eb)break;
-    if(!ea&&!eb){tour.results.push({a:tour.current[0],b:tour.current[1],w:null,at:Date.now()});tour.matchNo++;tour.current=null;}
-    else if(!ea)tourPick(tour.current[1]);
-    else tourPick(tour.current[0]);
-    if(!tour.current)advanceTour();
+  const nameOf=id=>{const e=state.entries.find(x=>x.id===id);return e?e.name:"（已刪除）"};
+  const emptyScore={votes:0,overall:NaN,attraction:NaN,personality:NaN,social:NaN,richness:NaN};
+  if(!tour){
+    let banner="";
+    try{
+      const localT=tourLoad(g);
+      const dismissed=sessionStorage.getItem("tour.import.dismiss."+g)==="1";
+      if(localT&&!dismissed&&!fbFailed){
+        banner=`<div class="tour-banner"><p>你手機仲有舊版<b>本機</b>淘汰賽記錄（${(localT.results||[]).length} 場賽果）。而家淘汰賽已經改為雲端即時同步，要唔要匯入做大家嘅雲端賽？</p><div style="display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="tourImportLocal('${g}')">匯入做雲端賽</button><button class="btn btn-ghost btn-sm" onclick="tourDiscardLocal('${g}')">唔要，開新賽</button></div></div>`;
+      }
+    }catch(e){}
+    v.innerHTML=tourStartScreenHTML(g,banner);
+    return;
+  }
+  if(!fbReady){
+    let guard=0;
+    while(tour.current&&guard++<100){
+      const ea=state.entries.find(x=>x.id===tour.current[0]);
+      const eb=state.entries.find(x=>x.id===tour.current[1]);
+      if(ea&&eb)break;
+      if(!ea&&!eb){tour.results.push({a:tour.current[0],b:tour.current[1],w:null,at:Date.now(),votes:[]});tour.matchNo++;tour.current=null;}
+      else{const id=ea?tour.current[0]:tour.current[1];tour.results.push({a:tour.current[0],b:tour.current[1],w:id,at:Date.now(),votes:[]});tour.matchNo++;tour.nextPool.push(id);tour.currentVotes=[];}
+      advanceTour(tour);
+    }
   }
   const totalIn=state.entries.filter(e=>(e.gender||"male")===g).length;
   if(tour.champion){
     const c=state.entries.find(x=>x.id===tour.champion);
     const other=g==="female"?"male":"female";
+    const rows=(tour.results||[]).map((r,i)=>{
+      const na=nameOf(r.a),nb=nameOf(r.b),wname=nameOf(r.w);
+      const va=(r.votes||[]).filter(x=>x.w===r.a).length;
+      const vb=(r.votes||[]).filter(x=>x.w===r.b).length;
+      const votesTxt=(r.votes||[]).length?`（${va} : ${vb} 票）`:"";
+      return `<div class="tr-row"><span class="tr-no">#${i+1}</span><span class="tr-txt">${esc(na)} vs ${esc(nb)} → <b>${esc(wname)}</b></span><span class="tr-votes">${votesTxt}</span></div>`;
+    }).join("");
     v.innerHTML=`<div class="tour-wrap">
-      <div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">已完成</span></div>
+      <div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">已完成 · 雲端即時同步</span></div>
       <div class="tour-done">
         <svg class="crown" viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="#F7B500" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M6 10l-1.5 3L8 12l4 4 4-4 3.5 1L18 10l-3-2-3 3-3-3z"/></svg>
         ${c?`<img src="${esc(photoSrc(c))}" alt="" onerror="this.src='${PLACEHOLDER}'"><h2>${esc(c.name)}</h2><p>${gLabel}榜最終冠軍！</p>`:`<h2>冇人贏</h2><p>啲同學被刪走晒，賽事腰斬。</p>`}
         <div class="btns">
-          <button class="btn btn-primary" onclick="tourReset()">重新開始</button>
+          <button class="btn btn-primary" onclick="tourStart('${g}')">重新開始（新雲端賽）</button>
           <a class="btn btn-ghost" href="#/tour/${other}">玩埋${other==="female"?"女生":"男生"}淘汰賽</a>
           <a class="btn btn-ghost" href="#/${g}">睇返${gLabel}榜</a>
         </div>
       </div>
+      ${rows?`<div class="tour-results"><h3>全部賽果（合併投票）</h3>${rows}</div>`:""}
     </div>`;
-    tourSave();return;
+    return;
   }
-  if(totalIn<2){v.innerHTML=`<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍</span></div><div class="empty"><h3>人數唔夠</h3><p>而家得 ${totalIn} 位${gLabel}同學，要最少 2 位先開到賽。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;return;}
+  if(totalIn<2){
+    v.innerHTML=tourStartScreenHTML(g,"");
+    return;
+  }
   if(!tour.current){
-    if(totalIn>=2){tourStart(g);return;}
-    v.innerHTML=`<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍</span></div><div class="empty"><h3>冇得玩</h3><p>要最少 2 位${gLabel}同學先可以開淘汰賽。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;return;
+    if(!fbReady&&totalIn>=2){tourStartLocal(g);return;}
+    v.innerHTML=tourStartScreenHTML(g,"");
+    return;
   }
   const A=state.entries.find(x=>x.id===tour.current[0]);
   const B=state.entries.find(x=>x.id===tour.current[1]);
-  const total=tour.matchNo+tour.pool.length+tour.nextPool.length+(tour.current?2:0)-1;
+  const scA=A?scores(A):emptyScore,scB=B?scores(B):emptyScore;
+  const total=tour.matchNo+tour.pool.length+tour.nextPool.length+2-1;
   const pct=Math.min(100,Math.round(tour.matchNo/(total||1)*100));
-  const scA=scores(A),scB=scores(B);
+  const va=(tour.currentVotes||[]).filter(x=>x.w===tour.current[0]).length;
+  const vb=(tour.currentVotes||[]).filter(x=>x.w===tour.current[1]).length;
+  const voted=(tour.currentVotes||[]).length;
   v.innerHTML=`<div class="tour-wrap">
-    <div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">邊個贏？㩒一下佢就晉級</span></div>
+    <div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">邊個贏？㩒佢投你一票 · 即時同步</span></div>
     <div class="tour-progress"><span>第 ${tour.matchNo+1} 場</span><div class="tour-bar"><i style="width:${pct}%"></i></div><span>${tour.pool.length+tour.nextPool.length+2} 人剩</span></div>
     <div class="tour-match">
-      <div class="tour-card" onclick="tourPick('${esc(A.id)}')">
-        <img src="${esc(photoSrc(A))}" alt="" onerror="this.src='${PLACEHOLDER}'">
-        <div class="nm">${esc(A.name)}</div>
-        ${A.tags&&A.tags.length?`<div class="tg">${A.tags.slice(0,3).map(t=>`<span>${esc(t)}</span>`).join("")}</div>`:""}
+      <div class="tour-card" onclick="tourPick('${esc(tour.current[0])}')">
+        <img src="${esc(photoSrc(A||{photo:""}))}" alt="" onerror="this.src='${PLACEHOLDER}'">
+        <div class="nm">${esc(nameOf(tour.current[0]))}</div>
+        ${A&&A.tags&&A.tags.length?`<div class="tg">${A.tags.slice(0,3).map(t=>`<span>${esc(t)}</span>`).join("")}</div>`:""}
         ${scA.votes?`<div class="tg"><span>綜合 ${fmt(scA.overall)}</span></div>`:""}
+        <div class="tg"><span class="vote-badge">${va} 票</span></div>
       </div>
       <div class="tour-vs">VS</div>
-      <div class="tour-card" onclick="tourPick('${esc(B.id)}')">
-        <img src="${esc(photoSrc(B))}" alt="" onerror="this.src='${PLACEHOLDER}'">
-        <div class="nm">${esc(B.name)}</div>
-        ${B.tags&&B.tags.length?`<div class="tg">${B.tags.slice(0,3).map(t=>`<span>${esc(t)}</span>`).join("")}</div>`:""}
+      <div class="tour-card" onclick="tourPick('${esc(tour.current[1])}')">
+        <img src="${esc(photoSrc(B||{photo:""}))}" alt="" onerror="this.src='${PLACEHOLDER}'">
+        <div class="nm">${esc(nameOf(tour.current[1]))}</div>
+        ${B&&B.tags&&B.tags.length?`<div class="tg">${B.tags.slice(0,3).map(t=>`<span>${esc(t)}</span>`).join("")}</div>`:""}
         ${scB.votes?`<div class="tg"><span>綜合 ${fmt(scB.overall)}</span></div>`:""}
+        <div class="tg"><span class="vote-badge">${vb} 票</span></div>
       </div>
     </div>
-    <div class="tour-hint">按「重新開始」可以再抽過組合 · 每次對決只影響你個人嘅結果</div>
-    <div style="text-align:center;margin-top:12px"><button class="btn btn-ghost btn-sm" onclick="tourReset()">重新開始</button></div>
+    <div class="tour-hint">㩒卡片投你一票（每人一票，可以改）· 滿 ${TOUR_CLOSE_VOTES} 票自動晉級（多數者贏）· 賽果即時同步俾所有人</div>
+    <div style="text-align:center;margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" onclick="tourLock()" ${voted?"":"disabled"}>鎖定賽果（${voted} 票 · 多數者贏）</button>
+      <button class="btn btn-ghost btn-sm" onclick="tourStart('${g}')">重新開始</button>
+    </div>
   </div>`;
-  tourSave();
 }
 
 /* ============ data merge ============ */
@@ -841,6 +1043,7 @@ function renderData(){
 function router(){
   const h=location.hash||"#/";
   const m=h.match(/^#\/class\/(.+)$/);
+  if(!h.startsWith("#/tour/")&&tourUnsub){tourUnsub();tourUnsub=null;}
   $$("main").forEach(x=>x.classList.add("hidden"));
   $$(".nav button").forEach(b=>b.classList.remove("active"));
   if(m){const id=decodeURIComponent(m[1]);const ent=state.entries.find(x=>x.id===id);const g=(ent&&ent.gender==="female")?"female":"male";$("#view-detail").classList.remove("hidden");$(`.nav button[data-nav=${g}]`).classList.add("active");renderDetail(id);}
