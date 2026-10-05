@@ -1141,10 +1141,11 @@ async function saveForm(){
   const name=$("#fName").value.trim();
   if(!name){toast("請填名稱","err");return;}
   const tags=$("#fTags").value.split(/[,，]/).map(s=>s.trim()).filter(Boolean).slice(0,6);
+  const desc=$("#fDesc").value.trim();
   const segOn=$("#segGender button.on");
   if(segOn)formGender=segOn.dataset.g;
   const existing=editId?state.entries.find(x=>x.id===editId):null;
-  const entry={id:editId||uid(),name,gender:formGender,tags,desc:$("#fDesc").value.trim(),photo:pendingPhoto,createdBy:existing?existing.createdBy:state.voterId,createdAt:existing?existing.createdAt:Date.now()};
+  const entry={id:editId||uid(),name,gender:formGender,tags,desc,photo:pendingPhoto,createdBy:existing?existing.createdBy:state.voterId,createdAt:existing?existing.createdAt:Date.now()};
   if(existing){Object.assign(existing,{name,gender:formGender,tags,desc,photo:pendingPhoto});}
   else{state.entries.unshift({...entry,votes:[]});}
   save();
