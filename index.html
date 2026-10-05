@@ -577,17 +577,19 @@ function loadTour(g){
   renderTour();
 }
 function tourStart(g){
-  const ids=state.entries.filter(e=>(e.gender||"male")===g).map(e=>e.id);
+  const ids=[...new Set(state.entries.filter(e=>(e.gender||"male")===g).map(e=>e.id))];
   tour={v:1,gender:g,pool:shuffle(ids),nextPool:[],matchNo:0,champion:null,results:[]};
   if(ids.length>=2)advanceTour();
   tourSave();renderTour();
 }
 function tourPick(id){
   if(!tour||!tour.current)return;
+  if(id!==tour.current[0]&&id!==tour.current[1])return;
   const [a,b]=tour.current;
   tour.results.push({a,b,w:id,at:Date.now()});
   tour.matchNo++;tour.nextPool.push(id);
   advanceTour();
+  tourSave();renderTour();
 }
 function advanceTour(){
   for(;;){
@@ -866,7 +868,7 @@ function saveForm(){
   if(existing){Object.assign(existing,{name,gender:formGender,tags,desc,photo:pendingPhoto});}
   else{state.entries.unshift({...entry,votes:[]});}
   save();
-  fbWrite(entry).catch(()=>toast("雲端寫入失敗，資料暫存本機","err"));
+  fbWrite(entry).catch(err=>{console.error("fbWrite fail",err);toast("雲端寫入失敗，資料暫存本機","err")});
   closeModal("formModal");toast(existing?"已更新":"已新增，快去評分","ok");router();
 }
 function deleteClass(id){
@@ -910,7 +912,10 @@ $("#cropOk").onclick=()=>{
   if(!cropper)return;
   try{
     const c=cropper.getCroppedCanvas({width:640,height:640,imageSmoothingQuality:"high"});
-    pendingPhoto=c.toDataURL("image/jpeg",.82);
+    let p=c.toDataURL("image/jpeg",.82);
+    if(p.length>700000){const c2=cropper.getCroppedCanvas({width:480,height:480,imageSmoothingQuality:"high"});p=c2.toDataURL("image/jpeg",.72);}
+    if(p.length>700000){const c3=cropper.getCroppedCanvas({width:360,height:360,imageSmoothingQuality:"high"});p=c3.toDataURL("image/jpeg",.65);}
+    pendingPhoto=p;
     syncPhotoUI();closeModal("cropModal");toast("相片已更新","ok");
   }catch(err){toast("無法處理圖片，請換一張試試","err");closeModal("cropModal");}
 };
