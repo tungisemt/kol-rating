@@ -485,6 +485,31 @@ footer.site b{color:var(--dim)}
   </div>
 </div>
 
+<!-- ===== 輸入彈窗（房間金鑰／貼網址，取代瀏覽器 prompt） ===== -->
+<div class="modal-back hidden" id="promptModal">
+  <div class="modal">
+    <div class="modal-head"><h2 id="pmTitle">輸入</h2><button class="modal-x" id="pmClose"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="field"><input type="text" id="pmInput" maxlength="80"></div>
+    <div class="hint-txt" id="pmHint"></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-ghost" style="flex:1" id="pmCancel">取消</button>
+      <button class="btn btn-primary" style="flex:1" id="pmOk">確定</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 確認彈窗（取代瀏覽器 confirm） ===== -->
+<div class="modal-back hidden" id="confirmModal">
+  <div class="modal">
+    <div class="modal-head"><h2>確認</h2><button class="modal-x" id="cfClose"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <p id="cfText" style="font-size:14px;color:var(--dim);line-height:1.7"></p>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button class="btn btn-ghost" style="flex:1" id="cfCancel">取消</button>
+      <button class="btn btn-danger" style="flex:1" id="cfOk">確定</button>
+    </div>
+  </div>
+</div>
+
 <footer class="site"><div class="container">同學評分榜係朋友之間嘅主觀娛樂，評分只代表個人喜好，唔代表事實。請只上傳經當事人同意嘅相片，尊重每一位同學，唔好用嚟欺凌、嘲笑或公開羞辱。</div></footer>
 
 <div id="toasts"></div>
@@ -555,11 +580,32 @@ async function seedAll(entries){
   const col=db.collection("entries");
   await Promise.all(entries.map(e=>col.doc(e.id).set(toFireEntry(e),{merge:true})));
 }
-function checkRoom(){
-  if(localStorage.getItem("roomKey")===ROOM_KEY)return true;
-  const k=prompt("要投票／新增／刪除，請先輸入房間金鑰（喺 Discord 訊息度有）：");
+let pmResolve=null,cfResolve=null;
+function roomAuthed(){return localStorage.getItem("roomKey")===ROOM_KEY;}
+function askInput(title,hint,placeholder){
+  return new Promise(res=>{
+    pmResolve=res;
+    $("#pmTitle").textContent=title;
+    $("#pmHint").textContent=hint||"";
+    $("#pmInput").placeholder=placeholder||"";
+    $("#pmInput").value="";
+    $("#promptModal").classList.remove("hidden");
+    setTimeout(()=>{try{$("#pmInput").focus();}catch(e){}},60);
+  });
+}
+function askConfirm(text){
+  return new Promise(res=>{
+    cfResolve=res;
+    $("#cfText").textContent=text;
+    $("#confirmModal").classList.remove("hidden");
+  });
+}
+async function ensureRoom(){
+  if(roomAuthed())return true;
+  const k=await askInput("輸入房間金鑰","要投票／新增／刪除／開淘汰賽，先輸入房間金鑰（喺 Discord 訊息度有）","房間金鑰");
   if(k===ROOM_KEY){localStorage.setItem("roomKey",ROOM_KEY);return true;}
-  toast("金鑰唔啱","err");return false;
+  if(k)toast("金鑰唔啱","err");
+  return false;
 }
 function updateSyncUI(){
   const p=$("#syncPill");
@@ -605,6 +651,13 @@ let tour=null,tourGender="male",tourUnsub=null;
 function tourLoad(g){try{const t=JSON.parse(localStorage.getItem(TOUR_KEY+g));return (t&&(t.v===1||t.v===2)&&t.gender===g)?t:null;}catch(e){return null;}}
 function tourSave(){if(tour)try{localStorage.setItem(TOUR_KEY+tour.gender,JSON.stringify(tour))}catch(e){}}
 function shuffle(a){const x=a.slice();for(let i=x.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[x[i],x[j]]=[x[j],x[i]];}return x;}
+function nextPow2(n){let p=1;while(p<n)p*=2;return p;}
+/* 標準單淘汰 bracket：輪空只會喺第一輪出現（人數唔係 2 嘅次方先有），
+   之後每輪人人都要打，唔會有人一場都未打就入決賽 */
+function buildBracket(ids){
+  const byes=nextPow2(ids.length)-ids.length;
+  return {pool:byes>0?ids.slice(byes):ids.slice(),nextPool:byes>0?ids.slice(0,byes):[],byes};
+}
 function advanceTour(t){
   t=t||tour;
   for(;;){
@@ -617,7 +670,7 @@ function advanceTour(t){
 }
 function tourToFire(t){
   return {v:2,gender:t.gender,pool:t.pool||[],nextPool:t.nextPool||[],
-    current:t.current||null,champion:t.champion||null,matchNo:t.matchNo||0,
+    current:t.current||null,champion:t.champion||null,matchNo:t.matchNo||0,byes:t.byes||0,
     currentVotes:(t.currentVotes||[]).map(x=>({v:x.v,w:x.w,at:x.at})),
     results:(t.results||[]).map(r=>({a:r.a,b:r.b,w:r.w||null,at:r.at||Date.now(),votes:(r.votes||[]).map(x=>({v:x.v,w:x.w,at:x.at}))})),
     startedAt:t.startedAt||Date.now(),updatedAt:Date.now()};
@@ -625,7 +678,7 @@ function tourToFire(t){
 function tourFromFire(d){
   const x=d.data()||{};
   return {v:2,gender:x.gender||"male",pool:x.pool||[],nextPool:x.nextPool||[],
-    current:x.current||null,champion:x.champion||null,matchNo:x.matchNo||0,
+    current:x.current||null,champion:x.champion||null,matchNo:x.matchNo||0,byes:x.byes||0,
     currentVotes:(x.currentVotes||[]).map(v=>({v:v.v,w:v.w,at:v.at})),
     results:(x.results||[]).map(r=>({a:r.a,b:r.b,w:r.w||null,at:r.at||Date.now(),votes:(r.votes||[]).map(v=>({v:v.v,w:v.w,at:v.at}))})),
     startedAt:x.startedAt||Date.now()};
@@ -653,12 +706,13 @@ function loadTourLocal(g){
 }
 function tourStartLocal(g){
   const ids=[...new Set(state.entries.filter(e=>(e.gender||"male")===g).map(e=>e.id))];
-  tour={v:2,gender:g,pool:shuffle(ids),nextPool:[],matchNo:0,champion:null,results:[],currentVotes:[],startedAt:Date.now()};
+  const br=buildBracket(shuffle(ids));
+  tour={v:2,gender:g,pool:br.pool,nextPool:br.nextPool,matchNo:0,champion:null,results:[],currentVotes:[],byes:br.byes,startedAt:Date.now()};
   if(ids.length>=2)advanceTour(tour);
   tourSave();renderTour();
 }
 async function tourStart(g){
-  if(!checkRoom())return;
+  if(!(await ensureRoom()))return;
   if(!fbReady){tourStartLocal(g);return;}
   const ids=[...new Set(state.entries.filter(e=>(e.gender||"male")===g).map(e=>e.id))];
   if(ids.length<2){toast("人數唔夠，開唔到賽","err");renderTour();return;}
@@ -668,10 +722,11 @@ async function tourStart(g){
   if(snap&&snap.exists){
     const cur=tourFromFire(snap);
     if(cur.results&&cur.results.length){
-      if(!confirm("雲端已經有場淘汰賽（有人玩緊／已完賽）。重新開始會清走所有人嘅賽果同投票，確定？"))return;
+      if(!(await askConfirm("雲端已經有場淘汰賽（有人玩緊／已完賽）。重新開始會清走所有人嘅賽果同投票，確定？")))return;
     }
   }
-  const t={v:2,gender:g,pool:shuffle(ids),nextPool:[],matchNo:0,champion:null,results:[],currentVotes:[],startedAt:Date.now()};
+  const br=buildBracket(shuffle(ids));
+  const t={v:2,gender:g,pool:br.pool,nextPool:br.nextPool,matchNo:0,champion:null,results:[],currentVotes:[],byes:br.byes,startedAt:Date.now()};
   advanceTour(t);
   try{await ref.set(tourToFire(t));}catch(e){console.error("[tour] start fail",e);toast("開賽寫入雲端失敗，稍後再試","err");return;}
   tour=t;toast("新淘汰賽已開始，即時同步俾所有人","ok");
@@ -693,7 +748,7 @@ function loadTour(g){
 async function tourPick(id){
   if(!tour||!tour.current)return;
   if(id!==tour.current[0]&&id!==tour.current[1])return;
-  if(!checkRoom())return;
+  if(!(await ensureRoom()))return;
   if(!fbReady){
     tour.currentVotes=addVote(tour.currentVotes,state.voterId,id,Date.now());
     const [a,b]=tour.current;
@@ -732,7 +787,7 @@ async function tourPick(id){
 async function tourLock(){
   if(!tour||!tour.current)return;
   if(!tourLockReady(tour)){toast("未有人投票，投咗先可以鎖定","err");return;}
-  if(!checkRoom())return;
+  if(!(await ensureRoom()))return;
   if(!fbReady){
     const [a,b]=tour.current;
     const w=majorityPick(a,b,tour.currentVotes);
@@ -760,10 +815,10 @@ async function tourLock(){
   }catch(err){console.error("[tour] lock fail",err);toast("鎖定失敗，稍後再試","err");return;}
   renderTour();
 }
-function tourImportLocal(g){
+async function tourImportLocal(g){
   const localT=tourLoad(g);
   if(!localT){toast("冇舊版本機記錄可以匯入","err");return;}
-  if(!checkRoom())return;
+  if(!(await ensureRoom()))return;
   db.collection(TOUR_COL).doc(g).set(tourToFire(localT)).then(()=>{
     toast("舊版淘汰賽已匯入雲端","ok");
   }).catch(err=>{console.error("[tour] import fail",err);toast("匯入失敗，稍後再試","err");});
@@ -777,7 +832,7 @@ function tourStartScreenHTML(g,banner){
   const gLabel=g==="female"?"女生":"男生";
   const totalIn=state.entries.filter(e=>(e.gender||"male")===g).length;
   if(totalIn<2){
-    return `<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍 · 雲端即時同步</span></div><div class="empty"><h3>人數唔夠</h3><p>而家得 ${totalIn} 位${gLabel}同學，要最少 2 位先開到賽。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;
+    return `<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍 · 雲端即時同步 · 人數唔係 2 嘅次方時首輪會自動輪空</span></div><div class="empty"><h3>人數唔夠</h3><p>而家得 ${totalIn} 位${gLabel}同學，要最少 2 位先開到賽。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;
   }
   return `<div class="tour-wrap">
     <div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍 · 雲端即時同步</span></div>
@@ -786,7 +841,7 @@ function tourStartScreenHTML(g,banner){
       <h3>未有雲端淘汰賽</h3>
       <p>而家有 ${totalIn} 位${gLabel}同學可以玩。開賽之後，每場對決大家都會即時見到同一份賽果。</p>
       <button class="btn btn-primary" onclick="tourStart('${g}')">開始淘汰賽</button>
-      <div class="tour-hint" style="margin-top:12px">㩒卡片投你一票（每人一票，可以改）· 滿 ${TOUR_CLOSE_VOTES} 票自動晉級（多數者贏）· 投完亦可以㩒「鎖定賽果」即刻晉級。</div>
+      <div class="tour-hint" style="margin-top:12px">㩒卡片投你一票（每人一票，可以改）· 滿 ${TOUR_CLOSE_VOTES} 票自動晉級（多數者贏）· 投完亦可以㩒「鎖定賽果」即刻晉級。人數唔係 2 嘅次方時，首輪會有人輪空自動晉級，之後每輪人人都要對賽。</div>
     </div>
   </div>`;
 }
@@ -862,9 +917,11 @@ function renderTour(){
   const va=(tour.currentVotes||[]).filter(x=>x.w===tour.current[0]).length;
   const vb=(tour.currentVotes||[]).filter(x=>x.w===tour.current[1]).length;
   const voted=(tour.currentVotes||[]).length;
+  const byeNote=(tour.byes>0&&tour.matchNo===0)?`<div class="tour-hint" style="margin-top:8px">首輪有 ${tour.byes} 位同學輪空（人數唔係 2 嘅次方，自動晉級）；之後每輪人人都要對賽，唔會有人一場未打就入決賽</div>`:"";
   v.innerHTML=`<div class="tour-wrap">
     <div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">邊個贏？㩒佢投你一票 · 即時同步</span></div>
     <div class="tour-progress"><span>第 ${tour.matchNo+1} 場</span><div class="tour-bar"><i style="width:${pct}%"></i></div><span>${tour.pool.length+tour.nextPool.length+2} 人剩</span></div>
+    ${byeNote}
     <div class="tour-match">
       <div class="tour-card" onclick="tourPick('${esc(tour.current[0])}')">
         <img src="${esc(photoSrc(A||{photo:""}))}" alt="" onerror="this.src='${PLACEHOLDER}'">
@@ -1016,8 +1073,8 @@ function renderDetail(id){
   v.querySelectorAll(".rs input").forEach(inp=>{
     inp.addEventListener("input",()=>{const d=inp.dataset.dim;const val=+inp.value;inp.style.setProperty("--fill",(val-1)/9*100+"%");v.querySelector(`[data-val="${d}"]`).textContent=val;});
   });
-  $("#btnSaveRate").onclick=()=>{
-    if(!checkRoom())return;
+  $("#btnSaveRate").onclick=async()=>{
+    if(!(await ensureRoom()))return;
     const vote={voter:state.voterId,nick:state.nick||"匿名",at:Date.now()};
     DIMS.forEach(d=>{vote[d.key]=+v.querySelector(`[data-dim="${d.key}"]`).value});
     const i=e.votes.findIndex(x=>x.voter===state.voterId);
@@ -1079,8 +1136,8 @@ function syncPhotoUI(){
   else{img.src=PLACEHOLDER;img.classList.add("hidden");$("#btnRemovePhoto").classList.add("hidden");}
 }
 function closeModal(id){$("#"+id).classList.add("hidden");if(id==="cropModal"&&cropper){cropper.destroy();cropper=null;}}
-function saveForm(){
-  if(!checkRoom())return;
+async function saveForm(){
+  if(!(await ensureRoom()))return;
   const name=$("#fName").value.trim();
   if(!name){toast("請填名稱","err");return;}
   const tags=$("#fTags").value.split(/[,，]/).map(s=>s.trim()).filter(Boolean).slice(0,6);
@@ -1094,9 +1151,9 @@ function saveForm(){
   fbWrite(entry).catch(err=>{console.error("[sync] fbWrite fail",err,"photo_len",(entry.photo||"").length);toast("雲端寫入失敗，資料暫存本機","err")});
   closeModal("formModal");toast(existing?"已更新":"已新增，快去評分","ok");router();
 }
-function deleteClass(id){
-  if(!checkRoom())return;
-  if(!confirm("確定刪除這位同學？所有評分會一齊刪除。"))return;
+async function deleteClass(id){
+  if(!(await ensureRoom()))return;
+  if(!(await askConfirm("確定刪除這位同學？所有評分會一齊刪除？")))return;
   state.entries=state.entries.filter(x=>x.id!==id);save();
   fbDelete(id).catch(()=>toast("雲端刪除失敗，資料暫存本機","err"));
   toast("已刪除","ok");router();
@@ -1138,8 +1195,9 @@ $("#filePhoto").onchange=e=>{
   if(f.size>15*1024*1024){toast("圖片太大，請選 15MB 以內","err");return;}
   const r=new FileReader();r.onload=()=>{if(typeof Cropper!=="undefined")toast("已載入相片：調整裁剪框後㩒「套用」先會儲存","ok");startCrop(r.result);};r.readAsDataURL(f);
 };
-$("#btnPasteUrl").onclick=()=>{
-  const url=prompt("貼上圖片網址（https://…）：");if(!url)return;
+$("#btnPasteUrl").onclick=async()=>{
+  const url=await askInput("貼上圖片網址","貼上 https:// 開頭嘅圖片網址，載入成功會直接套用","https://…");
+  if(!url)return;
   const im=new Image();
   im.onload=()=>{pendingPhoto=url;syncPhotoUI();toast("已使用圖片網址；若之後圖片失效可重新上傳","ok");};
   im.onerror=()=>toast("這個網址無法載入圖片","err");
@@ -1188,7 +1246,7 @@ $("#fileImport").onchange=e=>{
   r.readAsText(f,"utf-8");
 };
 $("#btnSaveNick").onclick=()=>{state.nick=$("#nick").value.trim().slice(0,20);save();toast("暱稱已儲存","ok");renderData();};
-$("#btnReset").onclick=()=>{if(!confirm("確定清空呢台裝置上嘅本機快取？（雲端資料唔會受影響）"))return;localStorage.removeItem(LS_KEY);load();toast("本機快取已清空","ok");router();renderData();};
+$("#btnReset").onclick=async()=>{if(!(await askConfirm("確定清空呢台裝置上嘅本機快取？（雲端資料唔會受影響）")))return;localStorage.removeItem(LS_KEY);load();toast("本機快取已清空","ok");router();renderData();};
 
 /* ============ misc events ============ */
 $$(".nav button").forEach(b=>b.onclick=()=>{const n=b.dataset.nav;location.hash=n==="male"?"#/male":n==="female"?"#/female":"#/data";});
@@ -1198,9 +1256,23 @@ $$("[data-close]").forEach(b=>b.onclick=()=>closeModal(b.dataset.close));
 $$(".chip").forEach(c=>c.onclick=()=>{$$(".chip").forEach(x=>x.classList.remove("active"));c.classList.add("active");sortKey=c.dataset.sort;renderRank();});
 $("#onlyMine").onclick=()=>{onlyMine=!onlyMine;$("#onlyMine").classList.toggle("on",onlyMine);renderRank();};
 $("#searchBox").addEventListener("input",renderRank);
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal("formModal");closeModal("cropModal");}});
+document.addEventListener("keydown",e=>{
+  if(e.key!=="Escape")return;
+  closeModal("formModal");closeModal("cropModal");
+  if(!$("#promptModal").classList.contains("hidden")){const r=pmResolve;pmResolve=null;if(r)r(null);$("#promptModal").classList.add("hidden");}
+  if(!$("#confirmModal").classList.contains("hidden")){const r=cfResolve;cfResolve=null;if(r)r(false);$("#confirmModal").classList.add("hidden");}
+});
 $("#cropModal").addEventListener("click",e=>{if(e.target.id==="cropModal")closeModal("cropModal")});
 $("#formModal").addEventListener("click",e=>{if(e.target.id==="formModal")closeModal("formModal")});
+$("#promptModal").addEventListener("click",e=>{if(e.target.id==="promptModal"){const r=pmResolve;pmResolve=null;if(r)r(null);$("#promptModal").classList.add("hidden");}});
+$("#confirmModal").addEventListener("click",e=>{if(e.target.id==="confirmModal"){const r=cfResolve;cfResolve=null;if(r)r(false);$("#confirmModal").classList.add("hidden");}});
+$("#pmOk").onclick=()=>{const v=$("#pmInput").value.trim();$("#promptModal").classList.add("hidden");if(pmResolve){pmResolve(v);pmResolve=null;}};
+$("#pmCancel").onclick=()=>{$("#promptModal").classList.add("hidden");if(pmResolve){pmResolve(null);pmResolve=null;}};
+$("#pmClose").onclick=()=>{$("#promptModal").classList.add("hidden");if(pmResolve){pmResolve(null);pmResolve=null;}};
+$("#pmInput").addEventListener("keydown",e=>{if(e.key==="Enter"){$("#pmOk").click();}});
+$("#cfOk").onclick=()=>{$("#confirmModal").classList.add("hidden");if(cfResolve){cfResolve(true);cfResolve=null;}};
+$("#cfCancel").onclick=()=>{$("#confirmModal").classList.add("hidden");if(cfResolve){cfResolve(false);cfResolve=null;}};
+$("#cfClose").onclick=()=>{$("#confirmModal").classList.add("hidden");if(cfResolve){cfResolve(false);cfResolve=null;}};
 $("#btnSaveForm").onclick=saveForm;
 
 /* ============ init ============ */
