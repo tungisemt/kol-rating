@@ -579,6 +579,7 @@ function loadTour(g){
 function tourStart(g){
   const ids=state.entries.filter(e=>(e.gender||"male")===g).map(e=>e.id);
   tour={v:1,gender:g,pool:shuffle(ids),nextPool:[],matchNo:0,champion:null,results:[]};
+  if(ids.length>=2)advanceTour();
   tourSave();renderTour();
 }
 function tourPick(id){
