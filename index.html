@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>KOL 評分榜</title>
-<meta name="description" content="和朋友一起為網紅打分：顏值、性格、社交、財富，即時排行榜。資料儲存在你的瀏覽器，可匯出匯入共用。">
+<title>同學評分榜</title>
+<meta name="description" content="和朋友一起為同學打分：顏值、性格、社交、財富，即時排行榜。資料儲存在你的瀏覽器，可匯出匯入共用。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237C5CFF'/%3E%3Cpath d='M20 44V24l12 10 12-10v20' stroke='%23fff' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
@@ -242,13 +242,13 @@ footer.site b{color:var(--dim)}
   <div class="container header-in">
     <div class="logo">
       <span class="logo-badge"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17V7l7 5 7-5v10"/></svg></span>
-      <span>KOL 評分榜<small>RATE THE STARS</small></span>
+      <span>同學評分榜<small>RATE YOUR CLASS</small></span>
     </div>
     <nav class="nav">
       <button data-nav="rank" class="active">排行榜</button>
       <button data-nav="data">資料</button>
     </nav>
-    <button class="btn btn-primary header-add" id="btnAdd">＋ 新增網紅</button>
+    <button class="btn btn-primary header-add" id="btnAdd">＋ 新增同學</button>
   </div>
 </header>
 
@@ -262,7 +262,7 @@ footer.site b{color:var(--dim)}
     <label class="toggle-wrap" id="onlyMine"><span class="switch"></span><span>只看我評過的</span></label>
     <div class="search">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.2-3.2"/></svg>
-      <input type="text" id="searchBox" placeholder="搜尋網紅名稱或標籤…">
+      <input type="text" id="searchBox" placeholder="搜尋同學名稱或標籤…">
     </div>
   </div>
   <div id="podium"></div>
@@ -287,13 +287,13 @@ footer.site b{color:var(--dim)}
     </div>
     <div class="data-card">
       <h3>匯出資料</h3>
-      <p>下載一份 JSON，內含所有網紅與所有人的評分。傳給朋友，或在下方匯入合併。</p>
+      <p>下載一份 JSON，內含所有同學與所有人的評分。傳給朋友，或在下方匯入合併。</p>
       <button class="btn btn-primary" id="btnExport">下載資料檔（JSON）</button>
       <button class="btn btn-ghost" id="btnDataJson">下載共用檔 data.json（更新到 GitHub 用）</button>
     </div>
     <div class="data-card">
       <h3>匯入合併</h3>
-      <p>把朋友傳來的 JSON 匯入，會自動合併：新網紅加入、重複網紅的評分合併、不覆蓋你本地的資料。</p>
+      <p>把朋友傳來的 JSON 匯入，會自動合併：新同學加入、重複同學的評分合併、不覆蓋你本地的資料。</p>
       <input type="file" id="fileImport" accept="application/json,.json" class="hidden">
       <button class="btn btn-ghost" id="btnImport">選擇 JSON 檔案匯入</button>
       <div class="hint-txt" id="mergeInfo"></div>
@@ -305,7 +305,7 @@ footer.site b{color:var(--dim)}
       <button class="btn btn-danger" id="btnReset">清空本機所有資料</button>
       <div class="steps" style="margin-top:12px">
         同步流程：<br>
-        1. 在「排行榜」新增網紅、上傳相片並評分<br>
+        1. 在「排行榜」新增同學、上傳相片並評分<br>
         2. 按「匯出資料」取得 JSON<br>
         3. 在 GitHub 把 JSON 內容貼進 <b>data.json</b> 並提交<br>
         4. 朋友重新打開網站就會自動合併
@@ -317,7 +317,7 @@ footer.site b{color:var(--dim)}
 <!-- ===== 新增/編輯 彈窗 ===== -->
 <div class="modal-back hidden" id="formModal">
   <div class="modal">
-    <div class="modal-head"><h2 id="formTitle">新增網紅</h2><button class="modal-x" data-close="formModal"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="modal-head"><h2 id="formTitle">新增同學</h2><button class="modal-x" data-close="formModal"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div class="field">
       <label>相片</label>
       <div class="photo-pick">
@@ -333,11 +333,11 @@ footer.site b{color:var(--dim)}
     </div>
     <div class="field">
       <label>名稱</label>
-      <input type="text" id="fName" placeholder="網紅名稱" maxlength="30">
+      <input type="text" id="fName" placeholder="同學名稱" maxlength="30">
     </div>
     <div class="field">
       <label>標籤（逗號分隔）</label>
-      <input type="text" id="fTags" placeholder="例如：直播, 短視頻, 電競" maxlength="60">
+      <input type="text" id="fTags" placeholder="例如：搞笑, 學霸, 班長" maxlength="60">
     </div>
     <div class="field">
       <label>備註 / 簡介</label>
@@ -364,6 +364,8 @@ footer.site b{color:var(--dim)}
     </div>
   </div>
 </div>
+
+<footer class="site"><div class="container">同學評分榜係朋友之間嘅主觀娛樂，評分只代表個人喜好，唔代表事實。請只上傳經當事人同意嘅相片，尊重每一位同學，唔好用嚟欺凌、嘲笑或公開羞辱。</div></footer>
 
 <div id="toasts"></div>
 
@@ -465,9 +467,9 @@ function renderRank(){
   if(!list.length){
     listEl.innerHTML=`<div class="empty">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 4H4v2a3 3 0 0 0 3 3M17 4h3v2a3 3 0 0 1-3 3"/></svg>
-      <h3>${kw? "找不到符合的網紅":"排行榜還是空的"}</h3>
-      <p>${kw? "試試其他關鍵字。":"按右上角「新增網紅」加入第一位，邀請朋友一起評分，即時看排名。"}</p>
-      ${kw?"":"<button class='btn btn-primary' onclick=\"openForm()\">＋ 新增第一位網紅</button>"}
+      <h3>${kw? "找不到符合的同學":"排行榜還是空的"}</h3>
+      <p>${kw? "試試其他關鍵字。":"按右上角「新增同學」加入第一位，邀請朋友一起評分，即時看排名。"}</p>
+      ${kw?"":"<button class='btn btn-primary' onclick=\"openForm()\">＋ 新增第一位同學</button>"}
     </div>`;
     return;
   }
@@ -492,7 +494,7 @@ function photoSrc(e){return e.photo?e.photo:PLACEHOLDER}
 function renderDetail(id){
   const e=state.entries.find(x=>x.id===id);
   const v=$("#view-detail");
-  if(!e){v.innerHTML=`<div class="empty"><h3>找不到這位網紅</h3><p>可能已被刪除。</p><button class="btn btn-primary" onclick="location.hash='#/'">回排行榜</button></div>`;return;}
+  if(!e){v.innerHTML=`<div class="empty"><h3>找不到這位同學</h3><p>可能已被刪除。</p><button class="btn btn-primary" onclick="location.hash='#/'">回排行榜</button></div>`;return;}
   const sc=scores(e),mv=myVote(e);
   v.innerHTML=`
     <div class="detail-hero">
@@ -541,7 +543,7 @@ function renderDetail(id){
 function renderData(){
   $("#nick").value=state.nick||"";
   const rated=state.entries.filter(e=>scores(e).votes>0);
-  $("#statBox").innerHTML=`<span class="pill">網紅 <b>${state.entries.length}</b></span><span class="pill">已評 <b>${rated.length}</b></span><span class="pill">總票數 <b>${state.entries.reduce((n,e)=>n+e.votes.length,0)}</b></span>`;
+  $("#statBox").innerHTML=`<span class="pill">同學 <b>${state.entries.length}</b></span><span class="pill">已評 <b>${rated.length}</b></span><span class="pill">總票數 <b>${state.entries.reduce((n,e)=>n+e.votes.length,0)}</b></span>`;
 }
 
 /* ============ router ============ */
@@ -562,7 +564,7 @@ let editId=null,pendingPhoto="";
 function openForm(id){
   editId=id||null;pendingPhoto="";
   const e=id?state.entries.find(x=>x.id===id):null;
-  $("#formTitle").textContent=e?"編輯網紅":"新增網紅";
+  $("#formTitle").textContent=e?"編輯同學":"新增同學";
   $("#fName").value=e?e.name:"";
   $("#fTags").value=e?(e.tags||[]).join(", "):"";
   $("#fDesc").value=e?e.desc:"";
@@ -591,7 +593,7 @@ function saveForm(){
   save();closeModal("formModal");router();
 }
 function deleteKol(id){
-  if(!confirm("確定刪除這位網紅？所有評分會一起刪除。"))return;
+  if(!confirm("確定刪除這位同學？所有評分會一起刪除。"))return;
   state.entries=state.entries.filter(x=>x.id!==id);save();toast("已刪除","ok");router();
 }
 
@@ -647,7 +649,7 @@ $("#fileImport").onchange=e=>{
   r.readAsText(f,"utf-8");
 };
 $("#btnSaveNick").onclick=()=>{state.nick=$("#nick").value.trim().slice(0,20);save();toast("暱稱已儲存","ok");};
-$("#btnReset").onclick=()=>{if(!confirm("確定清空這台裝置上的所有網紅與評分？此操作無法復原。"))return;localStorage.removeItem(LS_KEY);load();toast("已清空","ok");router();renderData();};
+$("#btnReset").onclick=()=>{if(!confirm("確定清空這台裝置上的所有同學與評分？此操作無法復原。"))return;localStorage.removeItem(LS_KEY);load();toast("已清空","ok");router();renderData();};
 
 /* ============ misc events ============ */
 $$(".nav button").forEach(b=>b.onclick=()=>location.hash=b.dataset.nav==="rank"?"#/":"#/data");
