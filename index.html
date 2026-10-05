@@ -7,7 +7,26 @@
 <meta name="description" content="和朋友一起為同學打分：顏值、性格、社交、財富，即時排行榜。所有資料即時同步到雲端，人人可投票。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237C5CFF'/%3E%3Cpath d='M20 44V24l12 10 12-10v20' stroke='%23fff' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css" onerror="cropperCssFallback()">
+<script>
+/* CropperJS CDN 後備源：jsdelivr 被擋（部分網絡/裝置）時自動改用 cdnjs */
+function cropperCssFallback(){
+  if(document.querySelector("link[data-crop-css-fb]"))return;
+  var l=document.createElement("link");
+  l.rel="stylesheet";l.setAttribute("data-crop-css-fb","1");
+  l.href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css";
+  document.head.appendChild(l);
+}
+function cropperJsFallback(){
+  if(window.__cropperJsRetried)return;
+  window.__cropperJsRetried=true;
+  var s=document.createElement("script");
+  s.src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js";
+  s.onload=function(){console.log("[photo] CropperJS 已由 cdnjs 後備源載入");};
+  s.onerror=function(){console.error("[photo] CropperJS 兩個 CDN 都載入失敗");window.__cropperJsDead=true;};
+  document.head.appendChild(s);
+}
+</script>
 <style>
 :root{
   --bg:#0D0F16; --surface:#141826; --surface2:#1B2132; --line:#26304A;
@@ -451,6 +470,7 @@ footer.site b{color:var(--dim)}
       <button class="btn btn-ghost btn-sm" id="cropZoomOut">－ 縮小</button>
       <button class="btn btn-primary btn-sm" id="cropOk" style="margin-left:auto">套用</button>
     </div>
+    <div class="hint-txt" style="text-align:center;margin-top:12px">調整好之後㩒「套用」先會儲存裁剪；直接㩒 ✕ 或撳背景離開唔會儲存。</div>
   </div>
 </div>
 
@@ -460,7 +480,7 @@ footer.site b{color:var(--dim)}
 
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js" onerror="cropperJsFallback()"></script>
 <script>
 "use strict";
 /* ============ helpers ============ */
@@ -868,7 +888,7 @@ function saveForm(){
   if(existing){Object.assign(existing,{name,gender:formGender,tags,desc,photo:pendingPhoto});}
   else{state.entries.unshift({...entry,votes:[]});}
   save();
-  fbWrite(entry).catch(err=>{console.error("fbWrite fail",err);toast("雲端寫入失敗，資料暫存本機","err")});
+  fbWrite(entry).catch(err=>{console.error("[sync] fbWrite fail",err,"photo_len",(entry.photo||"").length);toast("雲端寫入失敗，資料暫存本機","err")});
   closeModal("formModal");toast(existing?"已更新":"已新增，快去評分","ok");router();
 }
 function deleteClass(id){
@@ -885,6 +905,25 @@ function startCrop(dataUrl){
   cropSource=dataUrl;
   $("#cropImg").src=dataUrl;
   $("#cropModal").classList.remove("hidden");
+  if(typeof Cropper==="undefined"){
+    console.error("[photo] CropperJS 未載入（可能 CDN 被擋），改用自動方形裁剪");
+    toast("裁剪元件載入失敗，已改為自動方形裁剪","err");
+    try{
+      const img=new Image();
+      img.onload=()=>{
+        const side=Math.min(img.width,img.height);
+        let c=document.createElement("canvas");c.width=c.height=640;
+        c.getContext("2d").drawImage(img,(img.width-side)/2,(img.height-side)/2,side,side,0,0,640,640);
+        let p=c.toDataURL("image/jpeg",.82);
+        if(p.length>700000){c.width=c.height=480;p=c.toDataURL("image/jpeg",.72);}
+        if(p.length>700000){c.width=c.height=360;p=c.toDataURL("image/jpeg",.65);}
+        pendingPhoto=p;syncPhotoUI();closeModal("cropModal");toast("相片已更新（自動裁剪）","ok");
+      };
+      img.onerror=()=>{toast("無法讀取圖片","err");closeModal("cropModal");};
+      img.src=dataUrl;
+    }catch(err){console.error("[photo] 自動裁剪失敗",err);toast("無法處理圖片，請換一張試試","err");closeModal("cropModal");}
+    return;
+  }
   if(cropper)cropper.destroy();
   cropper=new Cropper($("#cropImg"),{aspectRatio:1,viewMode:1,autoCropArea:.85,background:false,responsive:true});
 }
@@ -894,7 +933,7 @@ $("#filePhoto").onchange=e=>{
   if(!f)return;
   if(!f.type.startsWith("image/")){toast("請選擇圖片檔案","err");return;}
   if(f.size>15*1024*1024){toast("圖片太大，請選 15MB 以內","err");return;}
-  const r=new FileReader();r.onload=()=>startCrop(r.result);r.readAsDataURL(f);
+  const r=new FileReader();r.onload=()=>{if(typeof Cropper!=="undefined")toast("已載入相片：調整裁剪框後㩒「套用」先會儲存","ok");startCrop(r.result);};r.readAsDataURL(f);
 };
 $("#btnPasteUrl").onclick=()=>{
   const url=prompt("貼上圖片網址（https://…）：");if(!url)return;
@@ -909,15 +948,16 @@ $("#cropFlip").onclick=()=>{if(cropper){const d=cropper.getData();cropper.scaleX
 $("#cropZoomIn").onclick=()=>cropper&&cropper.zoom(.1);
 $("#cropZoomOut").onclick=()=>cropper&&cropper.zoom(-.1);
 $("#cropOk").onclick=()=>{
-  if(!cropper)return;
+  if(!cropper){toast("裁剪未就緒，請重新揀相","err");return;}
   try{
     const c=cropper.getCroppedCanvas({width:640,height:640,imageSmoothingQuality:"high"});
     let p=c.toDataURL("image/jpeg",.82);
     if(p.length>700000){const c2=cropper.getCroppedCanvas({width:480,height:480,imageSmoothingQuality:"high"});p=c2.toDataURL("image/jpeg",.72);}
     if(p.length>700000){const c3=cropper.getCroppedCanvas({width:360,height:360,imageSmoothingQuality:"high"});p=c3.toDataURL("image/jpeg",.65);}
+    console.log("[photo] 裁剪後大小",Math.round(p.length/1024)+"KB");
     pendingPhoto=p;
     syncPhotoUI();closeModal("cropModal");toast("相片已更新","ok");
-  }catch(err){toast("無法處理圖片，請換一張試試","err");closeModal("cropModal");}
+  }catch(err){console.error("[photo] cropOk 失敗",err);toast("無法處理圖片，請換一張試試","err");closeModal("cropModal");}
 };
 
 /* ============ data actions ============ */
