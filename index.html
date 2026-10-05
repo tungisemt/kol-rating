@@ -77,6 +77,36 @@ header.top{position:sticky;top:0;z-index:50;background:rgba(13,15,22,.86);backdr
 .board-head{display:flex;align-items:baseline;gap:10px;margin:20px 0 0}
 .board-head h2{font-size:21px;font-weight:900}
 .board-head span{font-size:13px;color:var(--faint)}
+.board-head .btn{margin-left:auto;align-self:center}
+
+/* ===== tournament ===== */
+.tour-wrap{max-width:780px;margin:0 auto}
+.tour-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:20px 0 4px}
+.tour-head h2{font-size:20px;font-weight:900}
+.tour-head .sub{font-size:13px;color:var(--faint)}
+.tour-progress{display:flex;align-items:center;gap:8px;margin:10px 0 2px;font-size:13px;color:var(--dim)}
+.tour-bar{flex:1;height:6px;border-radius:4px;background:#222A3E;overflow:hidden}
+.tour-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:4px;transition:width .25s}
+.tour-match{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:stretch;margin-top:14px}
+.tour-card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:26px 18px 20px;text-align:center;cursor:pointer;transition:border-color .15s,transform .15s}
+.tour-card:hover{border-color:var(--accent);transform:translateY(-4px)}
+.tour-card img{width:150px;height:150px;border-radius:50%;object-fit:cover;margin:0 auto 14px;border:3px solid var(--line);background:var(--surface2)}
+.tour-card .nm{font-weight:800;font-size:17px}
+.tour-card .tg{display:flex;gap:5px;justify-content:center;margin-top:6px;flex-wrap:wrap}
+.tour-card .tg span{font-size:11px;color:var(--dim);background:var(--surface2);padding:1px 8px;border-radius:999px}
+.tour-vs{display:grid;place-items:center;font-weight:900;font-size:20px;color:var(--faint);letter-spacing:2px;flex:none}
+.tour-hint{text-align:center;color:var(--faint);font-size:13px;margin-top:16px}
+.tour-done{background:linear-gradient(180deg,rgba(247,181,0,.12),var(--surface) 55%);border:1px solid rgba(247,181,0,.5);border-radius:22px;padding:34px 20px;text-align:center;margin-top:16px}
+.tour-done .crown{margin:0 auto 6px}
+.tour-done img{width:150px;height:150px;border-radius:50%;object-fit:cover;margin:8px auto 12px;border:3px solid var(--gold);background:var(--surface2)}
+.tour-done h2{font-size:26px;font-weight:900;color:var(--gold)}
+.tour-done p{color:var(--dim);font-size:14px;margin-top:6px}
+.tour-done .btns{display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap}
+@media (max-width:560px){
+  .tour-match{grid-template-columns:1fr;gap:8px}
+  .tour-vs{height:34px}
+  .tour-card img{width:110px;height:110px}
+}
 
 /* gender segmented */
 .seg{display:inline-flex;gap:4px;background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:4px}
@@ -302,7 +332,7 @@ footer.site b{color:var(--dim)}
 </main>
 
 <main class="container hidden" id="view-rank">
-  <div class="board-head"><h2 id="boardTitle">男生榜</h2><span id="boardCount"></span></div>
+  <div class="board-head"><h2 id="boardTitle">男生榜</h2><span id="boardCount"></span><a class="btn btn-ghost btn-sm" id="tourLink" href="#/tour/male">淘汰賽</a></div>
   <div class="sortbar">
     <button class="chip active" data-sort="overall">綜合</button>
     <button class="chip" data-sort="attraction">顏值</button>
@@ -320,6 +350,8 @@ footer.site b{color:var(--dim)}
 </main>
 
 <main class="container hidden" id="view-detail"></main>
+
+<main class="container hidden" id="view-tour"></main>
 
 <main class="container hidden" id="view-data">
   <div class="detail-hero" style="grid-template-columns:1fr;padding:20px">
@@ -530,6 +562,104 @@ function renderCurrent(){
   if(m)renderDetail(decodeURIComponent(m[1]));
   else if(h.startsWith("#/data"))renderData();
   else if(h==="#/male"||h==="#/female")renderRank();
+  else if(h.startsWith("#/tour/")){tourGender=h.slice(7);if(!tour||tour.gender!==tourGender){loadTour(tourGender);}else{renderTour();}}
+}
+
+/* ============ tournament (2 pick 1 until champion) ============ */
+const TOUR_KEY="kolRating.tour.";
+let tour=null,tourGender="male";
+function tourLoad(g){try{const t=JSON.parse(localStorage.getItem(TOUR_KEY+g));return (t&&t.v===1&&t.gender===g)?t:null;}catch(e){return null;}}
+function tourSave(){if(tour)try{localStorage.setItem(TOUR_KEY+tour.gender,JSON.stringify(tour));}catch(e){}}
+function shuffle(a){const x=a.slice();for(let i=x.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[x[i],x[j]]=[x[j],x[i]];}return x;}
+function loadTour(g){
+  const t=tourLoad(g);
+  if(t){tour=t;}else{tourStart(g);}
+  renderTour();
+}
+function tourStart(g){
+  const ids=state.entries.filter(e=>(e.gender||"male")===g).map(e=>e.id);
+  tour={v:1,gender:g,pool:shuffle(ids),nextPool:[],matchNo:0,champion:null,results:[]};
+  tourSave();renderTour();
+}
+function tourPick(id){
+  if(!tour||!tour.current)return;
+  const [a,b]=tour.current;
+  tour.results.push({a,b,w:id,at:Date.now()});
+  tour.matchNo++;tour.nextPool.push(id);
+  advanceTour();
+}
+function advanceTour(){
+  for(;;){
+    if(tour.pool.length>=2){tour.current=[tour.pool.shift(),tour.pool.shift()];return;}
+    if(tour.pool.length===1){tour.nextPool.push(tour.pool.shift());continue;}
+    if(tour.nextPool.length>=2){tour.pool=tour.nextPool;tour.nextPool=[];continue;}
+    if(tour.nextPool.length===1){tour.champion=tour.nextPool.shift();tour.current=null;return;}
+    tour.champion=null;tour.current=null;return;
+  }
+}
+function tourReset(){const g=tour?tour.gender:tourGender;tourStart(g);}
+function renderTour(){
+  const v=$("#view-tour");
+  const g=tour?tour.gender:tourGender;
+  const gLabel=g==="female"?"女生":"男生";
+  if(!tour){v.innerHTML=`<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍</span></div><div class="empty"><h3>冇得玩</h3><p>要最少 2 位${gLabel}同學先可以開淘汰賽。去排行榜加人先啦。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;return;}
+  let guard=0;
+  while(tour.current&&guard++<100){
+    const ea=state.entries.find(x=>x.id===tour.current[0]);
+    const eb=state.entries.find(x=>x.id===tour.current[1]);
+    if(ea&&eb)break;
+    if(!ea&&!eb){tour.results.push({a:tour.current[0],b:tour.current[1],w:null,at:Date.now()});tour.matchNo++;tour.current=null;}
+    else if(!ea)tourPick(tour.current[1]);
+    else tourPick(tour.current[0]);
+    if(!tour.current)advanceTour();
+  }
+  const totalIn=state.entries.filter(e=>(e.gender||"male")===g).length;
+  if(totalIn<2){v.innerHTML=`<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍</span></div><div class="empty"><h3>人數唔夠</h3><p>而家得 ${totalIn} 位${gLabel}同學，要最少 2 位先開到賽。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;return;}
+  if(tour.champion){
+    const c=state.entries.find(x=>x.id===tour.champion);
+    const other=g==="female"?"male":"female";
+    v.innerHTML=`<div class="tour-wrap">
+      <div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">已完成</span></div>
+      <div class="tour-done">
+        <svg class="crown" viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="#F7B500" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M6 10l-1.5 3L8 12l4 4 4-4 3.5 1L18 10l-3-2-3 3-3-3z"/></svg>
+        ${c?`<img src="${esc(photoSrc(c))}" alt="" onerror="this.src='${PLACEHOLDER}'"><h2>${esc(c.name)}</h2><p>${gLabel}榜最終冠軍！</p>`:`<h2>冇人贏</h2><p>啲同學被刪走晒，賽事腰斬。</p>`}
+        <div class="btns">
+          <button class="btn btn-primary" onclick="tourReset()">重新開始</button>
+          <a class="btn btn-ghost" href="#/tour/${other}">玩埋${other==="female"?"女生":"男生"}淘汰賽</a>
+          <a class="btn btn-ghost" href="#/${g}">睇返${gLabel}榜</a>
+        </div>
+      </div>
+    </div>`;
+    tourSave();return;
+  }
+  if(!tour.current){v.innerHTML=`<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍</span></div><div class="empty"><h3>冇得玩</h3><p>要最少 2 位${gLabel}同學先可以開淘汰賽。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;return;}
+  const A=state.entries.find(x=>x.id===tour.current[0]);
+  const B=state.entries.find(x=>x.id===tour.current[1]);
+  const total=tour.matchNo+tour.pool.length+tour.nextPool.length+(tour.current?2:0)-1;
+  const pct=Math.min(100,Math.round(tour.matchNo/(total||1)*100));
+  const scA=scores(A),scB=scores(B);
+  v.innerHTML=`<div class="tour-wrap">
+    <div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">邊個贏？㩒一下佢就晉級</span></div>
+    <div class="tour-progress"><span>第 ${tour.matchNo+1} 場</span><div class="tour-bar"><i style="width:${pct}%"></i></div><span>${tour.pool.length+tour.nextPool.length+2} 人剩</span></div>
+    <div class="tour-match">
+      <div class="tour-card" onclick="tourPick('${esc(A.id)}')">
+        <img src="${esc(photoSrc(A))}" alt="" onerror="this.src='${PLACEHOLDER}'">
+        <div class="nm">${esc(A.name)}</div>
+        ${A.tags&&A.tags.length?`<div class="tg">${A.tags.slice(0,3).map(t=>`<span>${esc(t)}</span>`).join("")}</div>`:""}
+        ${scA.votes?`<div class="tg"><span>綜合 ${fmt(scA.overall)}</span></div>`:""}
+      </div>
+      <div class="tour-vs">VS</div>
+      <div class="tour-card" onclick="tourPick('${esc(B.id)}')">
+        <img src="${esc(photoSrc(B))}" alt="" onerror="this.src='${PLACEHOLDER}'">
+        <div class="nm">${esc(B.name)}</div>
+        ${B.tags&&B.tags.length?`<div class="tg">${B.tags.slice(0,3).map(t=>`<span>${esc(t)}</span>`).join("")}</div>`:""}
+        ${scB.votes?`<div class="tg"><span>綜合 ${fmt(scB.overall)}</span></div>`:""}
+      </div>
+    </div>
+    <div class="tour-hint">按「重新開始」可以再抽過組合 · 每次對決只影響你個人嘅結果</div>
+    <div style="text-align:center;margin-top:12px"><button class="btn btn-ghost btn-sm" onclick="tourReset()">重新開始</button></div>
+  </div>`;
+  tourSave();
 }
 
 /* ============ data merge ============ */
@@ -577,6 +707,7 @@ function renderRank(){
   $("#boardTitle").textContent=boardLabel();
   $("#boardCount").textContent=list.length?`${list.length} 位同學 · ${board==="male"?"男":"女"}`:"";
   $("#boardTitle").style.color=board==="female"?"var(--c-face)":"var(--accent2)";
+  $("#tourLink").href="#/tour/"+board;
   /* podium: overall top3 */
   if(rated.length>=3){
     const top=rated.slice().sort((a,b)=>scores(b).overall-scores(a).overall).slice(0,3);
@@ -689,6 +820,7 @@ function router(){
   if(m){const id=decodeURIComponent(m[1]);const ent=state.entries.find(x=>x.id===id);const g=(ent&&ent.gender==="female")?"female":"male";$("#view-detail").classList.remove("hidden");$(`.nav button[data-nav=${g}]`).classList.add("active");renderDetail(id);}
   else if(h.startsWith("#/data")){$("#view-data").classList.remove("hidden");$(".nav button[data-nav=data]").classList.add("active");renderData();}
   else if(h==="#/male"||h==="#/female"){board=h.slice(2);$("#view-rank").classList.remove("hidden");$(`.nav button[data-nav=${board}]`).classList.add("active");renderRank();}
+  else if(h.startsWith("#/tour/")){tourGender=h.slice(7);$("#view-tour").classList.remove("hidden");$(`.nav button[data-nav=${tourGender}]`).classList.add("active");loadTour(tourGender);}
   else{$("#view-home").classList.remove("hidden");}
   window.scrollTo(0,0);
 }
