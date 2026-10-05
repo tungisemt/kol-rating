@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>同學評分榜</title>
-<meta name="description" content="和朋友一起為同學打分：顏值、性格、社交、財富，即時排行榜。資料儲存在你的瀏覽器，可匯出匯入共用。">
+<meta name="description" content="和朋友一起為同學打分：顏值、性格、社交、財富，即時排行榜。所有資料即時同步到雲端，人人可投票。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237C5CFF'/%3E%3Cpath d='M20 44V24l12 10 12-10v20' stroke='%23fff' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
@@ -45,7 +45,11 @@ header.top{position:sticky;top:0;z-index:50;background:rgba(13,15,22,.86);backdr
 .nav button{padding:8px 14px;border-radius:10px;font-size:14px;font-weight:600;color:var(--dim)}
 .nav button.active{background:var(--surface2);color:var(--text)}
 .nav button:hover{color:var(--text)}
-.header-add{margin-left:auto}
+.sync-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--dim);background:var(--surface2);border:1px solid var(--line);padding:4px 11px;border-radius:999px;flex:none;margin-left:auto}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 6px rgba(46,212,125,.7)}
+.sync-pill.off{color:var(--faint)}
+.sync-pill.off .sync-dot{background:var(--danger);box-shadow:0 0 6px rgba(255,92,92,.7)}
+.header-add{margin-left:0}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 18px;border-radius:12px;font-weight:700;font-size:14px;transition:transform .12s ease,filter .12s ease;white-space:nowrap}
 .btn:active{transform:scale(.97)}
 .btn-primary{background:linear-gradient(135deg,var(--accent),#5B3DF0);color:#fff;box-shadow:0 6px 18px rgba(124,92,255,.35)}
@@ -248,6 +252,7 @@ footer.site b{color:var(--dim)}
       <button data-nav="rank" class="active">排行榜</button>
       <button data-nav="data">資料</button>
     </nav>
+    <span class="sync-pill" id="syncPill"><span class="sync-dot"></span>連線中</span>
     <button class="btn btn-primary header-add" id="btnAdd">＋ 新增同學</button>
   </div>
 </header>
@@ -274,41 +279,41 @@ footer.site b{color:var(--dim)}
 <main class="container hidden" id="view-data">
   <div class="detail-hero" style="grid-template-columns:1fr;padding:20px">
     <div>
-      <h1 style="font-size:22px;font-weight:900">共用資料庫</h1>
-      <p class="desc" style="margin-top:6px">資料預設只存在你自己的瀏覽器裡，不會自動上傳。想要朋友一起評分，把「匯出」的檔案傳給對方，或把合併後的 <b>data.json</b> 更新到 GitHub 上，大家重新打開網站就會自動合併共用資料。</p>
+      <h1 style="font-size:22px;font-weight:900">即時共用資料庫</h1>
+      <p class="desc" style="margin-top:6px">所有改動（新增、評分、刪除）都會<b>即時同步到雲端</b>，所有人打開同一個網址就會見到同一份資料、排行榜即時更新。第一次投票／新增／刪除要先輸入<b>房間金鑰</b>（喺 Discord 訊息度有）。</p>
     </div>
   </div>
   <div class="data-grid">
     <div class="data-card">
+      <h3>連線狀態</h3>
+      <p>而家同雲端資料庫嘅連線：</p>
+      <div class="statline" id="statBox"></div>
+      <div class="hint-txt">離線時改動會暫存喺本機，重新上線自動補交。</div>
+    </div>
+    <div class="data-card">
       <h3>我的設定</h3>
-      <p>設一個暱稱，別人合併你的資料時會看到這個名字。</p>
+      <p>設一個暱稱，你評分時其他人會見到呢個名。</p>
       <div class="field"><input type="text" id="nick" placeholder="暱稱（例如：小明）" maxlength="20"></div>
       <button class="btn btn-primary" id="btnSaveNick" style="width:100%">儲存暱稱</button>
     </div>
     <div class="data-card">
-      <h3>匯出資料</h3>
-      <p>下載一份 JSON，內含所有同學與所有人的評分。傳給朋友，或在下方匯入合併。</p>
-      <button class="btn btn-primary" id="btnExport">下載資料檔（JSON）</button>
-      <button class="btn btn-ghost" id="btnDataJson">下載共用檔 data.json（更新到 GitHub 用）</button>
-    </div>
-    <div class="data-card">
-      <h3>匯入合併</h3>
-      <p>把朋友傳來的 JSON 匯入，會自動合併：新同學加入、重複同學的評分合併、不覆蓋你本地的資料。</p>
+      <h3>備份（匯出）</h3>
+      <p>下載一份 JSON 做備份。雲端資料會自動儲存，平時唔使手動合併。</p>
+      <button class="btn btn-primary" id="btnExport">下載備份（JSON）</button>
+      <button class="btn btn-ghost" id="btnImport">選擇 JSON 匯入（合併到雲端）</button>
       <input type="file" id="fileImport" accept="application/json,.json" class="hidden">
-      <button class="btn btn-ghost" id="btnImport">選擇 JSON 檔案匯入</button>
       <div class="hint-txt" id="mergeInfo"></div>
     </div>
     <div class="data-card">
-      <h3>本機資料</h3>
-      <p>目前這台裝置的瀏覽器儲存了這些資料：</p>
-      <div class="statline" id="statBox"></div>
-      <button class="btn btn-danger" id="btnReset">清空本機所有資料</button>
+      <h3>本機快取</h3>
+      <p>呢台裝置瀏覽器暫時存咗：</p>
+      <div class="statline" id="statBox2"></div>
+      <button class="btn btn-danger" id="btnReset">清空本機快取</button>
       <div class="steps" style="margin-top:12px">
         同步流程：<br>
-        1. 在「排行榜」新增同學、上傳相片並評分<br>
-        2. 按「匯出資料」取得 JSON<br>
-        3. 在 GitHub 把 JSON 內容貼進 <b>data.json</b> 並提交<br>
-        4. 朋友重新打開網站就會自動合併
+        1. 所有人打開 <b>同一個網址</b><br>
+        2. 輸入房間金鑰（喺 Discord 訊息度）<br>
+        3. 新增同學、評分 —— 全體即時更新
       </div>
     </div>
   </div>
@@ -369,6 +374,8 @@ footer.site b{color:var(--dim)}
 
 <div id="toasts"></div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
 <script>
 "use strict";
@@ -377,6 +384,9 @@ const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 const LS_KEY="kolRating.v1";
+const FB_CONFIG={apiKey:"AIzaSyC7jzTr4IqGbfAKGYehz6YBIedY3-pQ5ME",authDomain:"class-rating-hk.firebaseapp.com",projectId:"class-rating-hk",appId:"1:932289817011:web:46159fe9245d6138dc03c6"};
+const ROOM_KEY="cl4ss-hk-2026";
+let fb=null,db=null,fbReady=false,fbFailed=false,seededLocal=false;
 const PLACEHOLDER="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2A3350"/><stop offset="1" stop-color="#1B2132"/></linearGradient></defs><rect width="200" height="200" fill="url(#g)"/><circle cx="100" cy="78" r="34" fill="#4A5578"/><path d="M40 175c4-38 30-56 60-56s56 18 60 56z" fill="#4A5578"/></svg>');
 const fmt=n=>Number.isFinite(n)?n.toFixed(1):"–";
 const mean=a=>a.length? a.reduce((x,y)=>x+y,0)/a.length : NaN;
@@ -410,23 +420,84 @@ function scores(e){
 }
 function myVote(e){return e.votes.find(v=>v.voter===state.voterId)||null}
 
+/* ============ firebase realtime sync ============ */
+function toFireEntry(e){
+  const votes={};
+  (Array.isArray(e.votes)?e.votes:[]).forEach(v=>{if(v&&v.voter)votes[v.voter]=v;});
+  return {id:e.id,name:e.name,photo:e.photo||"",tags:Array.isArray(e.tags)?e.tags:[],desc:e.desc||"",createdBy:e.createdBy||"",createdAt:e.createdAt||Date.now(),votes};
+}
+function fromFireEntry(d){
+  const data=d.data()||{};
+  const vm=data.votes||{};
+  const votes=Object.keys(vm).map(k=>vm[k]).filter(Boolean);
+  return {id:d.id,name:data.name||"",photo:data.photo||"",tags:Array.isArray(data.tags)?data.tags:[],desc:data.desc||"",createdBy:data.createdBy||"",createdAt:data.createdAt||Date.now(),votes};
+}
+function cacheEntries(){try{localStorage.setItem(LS_KEY,JSON.stringify(state))}catch(e){}}
+async function fbWrite(e){if(fbReady)await db.collection("entries").doc(e.id).set(toFireEntry(e),{merge:true});}
+async function fbPatch(id,patch){if(fbReady)await db.collection("entries").doc(id).set(patch,{merge:true});}
+async function fbDelete(id){if(fbReady)await db.collection("entries").doc(id).delete();}
+async function seedAll(entries){
+  const col=db.collection("entries");
+  await Promise.all(entries.map(e=>col.doc(e.id).set(toFireEntry(e),{merge:true})));
+}
+function checkRoom(){
+  if(localStorage.getItem("roomKey")===ROOM_KEY)return true;
+  const k=prompt("要投票／新增／刪除，請先輸入房間金鑰（喺 Discord 訊息度有）：");
+  if(k===ROOM_KEY){localStorage.setItem("roomKey",ROOM_KEY);return true;}
+  toast("金鑰唔啱","err");return false;
+}
+function updateSyncUI(){
+  const p=$("#syncPill");
+  if(p){
+    if(fbReady){p.classList.remove("off");p.innerHTML='<span class="sync-dot"></span>即時同步中';}
+    else{p.classList.add("off");p.innerHTML='<span class="sync-dot"></span>本機模式';}
+  }
+}
+async function initFB(){
+  if(typeof firebase==="undefined"){fbFailed=true;updateSyncUI();return;}
+  try{
+    fb=firebase.initializeApp(FB_CONFIG);
+    db=fb.firestore();
+    try{await db.enablePersistence({synchronizeTabs:true});}catch(e){/* 多分頁時第二個分頁會拒絕，屬正常 */}
+    fbReady=true;updateSyncUI();
+    db.collection("entries").onSnapshot(snap=>{
+      const docs=snap.docs.map(d=>fromFireEntry(d));
+      if(!docs.length&&!seededLocal){
+        try{const raw=localStorage.getItem(LS_KEY);if(raw){const d=JSON.parse(raw);const old=Array.isArray(d.entries)?d.entries:[];
+          if(old.length){seededLocal=true;seedAll(old).then(()=>{toast("已將本機舊資料上傳到雲端","ok")}).catch(()=>{});}}}catch(e){}
+      }
+      state.entries=docs;
+      cacheEntries();
+      renderCurrent();
+    },err=>{fbReady=false;fbFailed=true;updateSyncUI();toast("即時同步中斷，改用本機模式","err");});
+  }catch(e){fbFailed=true;updateSyncUI();console.warn("fb init fail",e);}
+}
+function renderCurrent(){
+  const h=location.hash||"#/";
+  const m=h.match(/^#\/class\/(.+)$/);
+  if(m)renderDetail(decodeURIComponent(m[1]));
+  else if(h.startsWith("#/data"))renderData();
+  else renderRank();
+}
+
 /* ============ data merge ============ */
-function mergeData(json){
-  if(!json||!Array.isArray(json.entries))throw new Error("格式不正確");
-  let added=0,merged=0;
-  json.entries.forEach(en=>{
+function mergeEntries(list){
+  const out=[];
+  list.forEach(en=>{
     if(!en||!en.name)return;
     const id=en.id||uid();
     let local=state.entries.find(x=>x.id===id);
-    if(!local){state.entries.push({id,name:String(en.name),photo:en.photo||"",tags:Array.isArray(en.tags)?en.tags.map(String):[],desc:en.desc||"",createdBy:en.createdBy||"",createdAt:en.createdAt||Date.now(),votes:[]});local=state.entries[state.entries.length-1];added++;}
+    if(!local){local={id,name:String(en.name),photo:en.photo||"",tags:Array.isArray(en.tags)?en.tags.map(String):[],desc:en.desc||"",createdBy:en.createdBy||"",createdAt:en.createdAt||Date.now(),votes:[]};}
+    const votes=Array.isArray(local.votes)?local.votes.slice():[];
     (Array.isArray(en.votes)?en.votes:[]).forEach(v=>{
       if(!v||!v.voter||!v.attraction)return;
-      const i=local.votes.findIndex(x=>x.voter===v.voter);
-      if(i>=0){if((v.at||0)>=(local.votes[i].at||0))local.votes[i]=v;merged++;}
-      else{local.votes.push(v);merged++;}
+      const i=votes.findIndex(x=>x.voter===v.voter);
+      if(i>=0){if((v.at||0)>=(votes[i].at||0))votes[i]=v;}
+      else votes.push(v);
     });
+    out.push({...local,votes});
   });
-  return {added,merged};
+  return out;
 }
 
 /* ============ render: leaderboard ============ */
@@ -531,11 +602,14 @@ function renderDetail(id){
     inp.addEventListener("input",()=>{const d=inp.dataset.dim;const val=+inp.value;inp.style.setProperty("--fill",(val-1)/9*100+"%");v.querySelector(`[data-val="${d}"]`).textContent=val;});
   });
   $("#btnSaveRate").onclick=()=>{
+    if(!checkRoom())return;
     const vote={voter:state.voterId,nick:state.nick||"匿名",at:Date.now()};
     DIMS.forEach(d=>{vote[d.key]=+v.querySelector(`[data-dim="${d.key}"]`).value});
     const i=e.votes.findIndex(x=>x.voter===state.voterId);
     if(i>=0)e.votes[i]=vote;else e.votes.push(vote);
-    save();toast("評分已儲存","ok");renderDetail(id);renderRank();
+    save();
+    fbPatch(e.id,{votes:{[vote.voter]:vote}}).catch(()=>toast("雲端寫入失敗，資料暫存本機","err"));
+    toast("評分已儲存","ok");renderDetail(id);renderRank();
   };
 }
 
@@ -543,7 +617,9 @@ function renderDetail(id){
 function renderData(){
   $("#nick").value=state.nick||"";
   const rated=state.entries.filter(e=>scores(e).votes>0);
-  $("#statBox").innerHTML=`<span class="pill">同學 <b>${state.entries.length}</b></span><span class="pill">已評 <b>${rated.length}</b></span><span class="pill">總票數 <b>${state.entries.reduce((n,e)=>n+e.votes.length,0)}</b></span>`;
+  const total=state.entries.reduce((n,e)=>n+e.votes.length,0);
+  $("#statBox").innerHTML=`<span class="pill">連線 <b>${fbReady?"雲端":"本機"}</b></span><span class="pill">同學 <b>${state.entries.length}</b></span><span class="pill">已評 <b>${rated.length}</b></span><span class="pill">總票數 <b>${total}</b></span>`;
+  $("#statBox2").innerHTML=`<span class="pill">本機快取 <b>${state.entries.length}</b> 位同學</span><span class="pill">暱稱 <b>${esc(state.nick||"未設定")}</b></span>`;
 }
 
 /* ============ router ============ */
@@ -579,22 +655,24 @@ function syncPhotoUI(){
 }
 function closeModal(id){$("#"+id).classList.add("hidden");if(id==="cropModal"&&cropper){cropper.destroy();cropper=null;}}
 function saveForm(){
+  if(!checkRoom())return;
   const name=$("#fName").value.trim();
   if(!name){toast("請填名稱","err");return;}
   const tags=$("#fTags").value.split(/[,，]/).map(s=>s.trim()).filter(Boolean).slice(0,6);
-  const entry={name,tags,desc:$("#fDesc").value.trim(),photo:pendingPhoto};
-  if(editId){
-    const e=state.entries.find(x=>x.id===editId);Object.assign(e,entry);
-    toast("已更新","ok");
-  }else{
-    state.entries.unshift({id:uid(),...entry,createdBy:state.voterId,createdAt:Date.now(),votes:[]});
-    toast("已新增，快去評分","ok");
-  }
-  save();closeModal("formModal");router();
+  const existing=editId?state.entries.find(x=>x.id===editId):null;
+  const entry={id:editId||uid(),name,tags,desc:$("#fDesc").value.trim(),photo:pendingPhoto,createdBy:existing?existing.createdBy:state.voterId,createdAt:existing?existing.createdAt:Date.now()};
+  if(existing){Object.assign(existing,{name,tags,desc,photo:pendingPhoto});}
+  else{state.entries.unshift({...entry,votes:[]});}
+  save();
+  fbWrite(entry).catch(()=>toast("雲端寫入失敗，資料暫存本機","err"));
+  closeModal("formModal");toast(existing?"已更新":"已新增，快去評分","ok");router();
 }
 function deleteClass(id){
-  if(!confirm("確定刪除這位同學？所有評分會一起刪除。"))return;
-  state.entries=state.entries.filter(x=>x.id!==id);save();toast("已刪除","ok");router();
+  if(!checkRoom())return;
+  if(!confirm("確定刪除這位同學？所有評分會一齊刪除。"))return;
+  state.entries=state.entries.filter(x=>x.id!==id);save();
+  fbDelete(id).catch(()=>toast("雲端刪除失敗，資料暫存本機","err"));
+  toast("已刪除","ok");router();
 }
 
 /* ============ photo: upload + crop ============ */
@@ -637,19 +715,30 @@ $("#cropOk").onclick=()=>{
 
 /* ============ data actions ============ */
 function download(name,json){const b=new Blob([JSON.stringify(json)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);}
-function exportJson(){return {app:"class-rating",version:1,exportedAt:new Date().toISOString(),entries:state.entries}}
-$("#btnExport").onclick=()=>{if(!state.entries.length){toast("還沒有資料可以匯出","err");return;}download("class-rating-data.json",exportJson());toast("已匯出 JSON","ok");};
-$("#btnDataJson").onclick=()=>{if(!state.entries.length){toast("還沒有資料可以匯出","err");return;}download("data.json",exportJson());toast("把這個檔案的內容更新到 GitHub 的 data.json","ok");};
+function exportJson(){return {app:"class-rating",version:2,exportedAt:new Date().toISOString(),entries:state.entries}}
+$("#btnExport").onclick=()=>{if(!state.entries.length){toast("還沒有資料可以匯出","err");return;}download("class-rating-backup.json",exportJson());toast("已匯出備份 JSON","ok");};
 $("#btnImport").onclick=()=>$("#fileImport").click();
 $("#fileImport").onchange=e=>{
   const f=e.target.files[0];e.target.value="";
   if(!f)return;
   const r=new FileReader();
-  r.onload=()=>{try{const res=mergeData(JSON.parse(r.result));save();toast(`已合併：新增 ${res.added} 位，合併 ${res.merged} 票評分`,"ok");renderData();router();}catch(err){toast("檔案格式不正確："+err.message,"err")}};
+  r.onload=()=>{try{
+    const json=JSON.parse(r.result);
+    if(!json||!Array.isArray(json.entries))throw new Error("格式唔啱");
+    const merged=mergeEntries(json.entries);
+    if(!merged.length){toast("冇新資料可以合併","err");return;}
+    if(fbReady){
+      Promise.all(merged.map(en=>db.collection("entries").doc(en.id).set(toFireEntry(en),{merge:true}))).then(()=>toast(`已合併 ${merged.length} 位到雲端`,"ok")).catch(()=>toast("雲端合併失敗","err"));
+    }else{
+      merged.forEach(en=>{const i=state.entries.findIndex(x=>x.id===en.id);if(i>=0)state.entries[i]=en;else state.entries.push(en);});
+      save();toast(`已合併 ${merged.length} 位（本機）`,"ok");
+    }
+    router();
+  }catch(err){toast("檔案格式唔啱："+err.message,"err")}};
   r.readAsText(f,"utf-8");
 };
-$("#btnSaveNick").onclick=()=>{state.nick=$("#nick").value.trim().slice(0,20);save();toast("暱稱已儲存","ok");};
-$("#btnReset").onclick=()=>{if(!confirm("確定清空這台裝置上的所有同學與評分？此操作無法復原。"))return;localStorage.removeItem(LS_KEY);load();toast("已清空","ok");router();renderData();};
+$("#btnSaveNick").onclick=()=>{state.nick=$("#nick").value.trim().slice(0,20);save();toast("暱稱已儲存","ok");renderData();};
+$("#btnReset").onclick=()=>{if(!confirm("確定清空呢台裝置上嘅本機快取？（雲端資料唔會受影響）"))return;localStorage.removeItem(LS_KEY);load();toast("本機快取已清空","ok");router();renderData();};
 
 /* ============ misc events ============ */
 $$(".nav button").forEach(b=>b.onclick=()=>location.hash=b.dataset.nav==="rank"?"#/":"#/data");
@@ -666,10 +755,7 @@ $("#btnSaveForm").onclick=saveForm;
 /* ============ init ============ */
 (async function init(){
   load();
-  try{
-    const r=await fetch("./data.json",{cache:"no-store"});
-    if(r.ok){const res=mergeData(await r.json());if(res.added+res.merged){save();toast(`已合併 GitHub 共用資料（新增 ${res.added} 位）`,"ok");}}
-  }catch(e){/* 本地預覽 file:// 無法 fetch，屬正常 */}
+  await initFB();
   router();
   renderData();
 })();
