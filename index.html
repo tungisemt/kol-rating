@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>KOL 評分榜</title>
+<meta name="description" content="和朋友一起為網紅打分：顏值、性格、社交、財富，即時排行榜。資料儲存在你的瀏覽器，可匯出匯入共用。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237C5CFF'/%3E%3Cpath d='M20 44V24l12 10 12-10v20' stroke='%23fff' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
+<style>
+:root{
+  --bg:#0D0F16; --surface:#141826; --surface2:#1B2132; --line:#26304A;
+  --text:#EDF0F7; --dim:#8E97AC; --faint:#5B6478;
+  --accent:#7C5CFF; --accent2:#00D2FF;
+  --gold:#F7B500; --silver:#C4CBD9; --bronze:#D08A4E;
+  --c-face:#FF5D8F; --c-person:#7C5CFF; --c-social:#00D2FF; --c-rich:#FFB84D;
+  --ok:#2ED47D; --danger:#FF5C5C;
+  --r:14px;
+  --shadow:0 10px 30px rgba(0,0,0,.35);
+  --font:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Microsoft YaHei",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font);line-height:1.55;min-height:100vh}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea,select{font-family:inherit;color:inherit}
+img{display:block}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#2A3350;border-radius:8px}
+::-webkit-scrollbar-track{background:transparent}
+
+.container{max-width:1060px;margin:0 auto;padding:0 16px}
+.hidden{display:none!important}
+
+/* ===== header ===== */
+header.top{position:sticky;top:0;z-index:50;background:rgba(13,15,22,.86);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.header-in{display:flex;align-items:center;gap:14px;height:60px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:900;font-size:19px;letter-spacing:.5px}
+.logo-badge{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;flex:none}
+.logo-badge svg{width:20px;height:20px}
+.logo small{display:block;font-size:10px;font-weight:500;color:var(--dim);letter-spacing:2px}
+.nav{display:flex;gap:4px;margin-left:6px}
+.nav button{padding:8px 14px;border-radius:10px;font-size:14px;font-weight:600;color:var(--dim)}
+.nav button.active{background:var(--surface2);color:var(--text)}
+.nav button:hover{color:var(--text)}
+.header-add{margin-left:auto}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 18px;border-radius:12px;font-weight:700;font-size:14px;transition:transform .12s ease,filter .12s ease;white-space:nowrap}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:linear-gradient(135deg,var(--accent),#5B3DF0);color:#fff;box-shadow:0 6px 18px rgba(124,92,255,.35)}
+.btn-primary:hover{filter:brightness(1.08)}
+.btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--line)}
+.btn-ghost:hover{border-color:#39456B}
+.btn-danger{background:rgba(255,92,92,.12);color:var(--danger);border:1px solid rgba(255,92,92,.35)}
+.btn-sm{padding:7px 12px;font-size:13px;border-radius:10px}
+.btn svg{width:16px;height:16px;flex:none}
+
+/* ===== podium ===== */
+.podium{display:grid;grid-template-columns:1fr 1.08fr 1fr;gap:12px;align-items:end;margin:22px 0 6px}
+.podium-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px 12px 14px;text-align:center;position:relative;overflow:hidden}
+.podium-card.first{background:linear-gradient(180deg,rgba(247,181,0,.10),var(--surface) 60%);border-color:rgba(247,181,0,.45);box-shadow:0 14px 34px rgba(247,181,0,.10);padding-top:22px}
+.podium-card.second{border-color:rgba(196,203,217,.35)}
+.podium-card.third{border-color:rgba(208,138,78,.35)}
+.podium-medal{position:absolute;top:10px;left:50%;transform:translateX(-50%);font-size:12px;font-weight:900;padding:3px 10px;border-radius:999px;letter-spacing:1px}
+.first .podium-medal{background:var(--gold);color:#241B00}
+.second .podium-medal{background:var(--silver);color:#23262D}
+.third .podium-medal{background:var(--bronze);color:#2A1505}
+.podium-photo{width:74px;height:74px;border-radius:50%;object-fit:cover;margin:20px auto 10px;border:3px solid var(--line);background:var(--surface2)}
+.first .podium-photo{width:92px;height:92px;border-color:var(--gold)}
+.podium-name{font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.first .podium-name{font-size:17px}
+.podium-score{font-weight:900;font-size:22px;color:var(--accent2);font-variant-numeric:tabular-nums}
+.first .podium-score{color:var(--gold);font-size:26px}
+.podium-score small{font-size:11px;font-weight:500;color:var(--dim)}
+
+/* ===== list ===== */
+.sortbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0 12px}
+.chip{padding:7px 14px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:13px;font-weight:600;color:var(--dim)}
+.chip.active{background:var(--surface2);color:var(--text);border-color:#3A4570}
+.chip:hover{border-color:#3A4570}
+.search{flex:1;min-width:180px;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 12px}
+.search svg{width:15px;height:15px;color:var(--faint);flex:none}
+.search input{background:none;border:none;outline:none;width:100%;font-size:14px}
+.search input::placeholder{color:var(--faint)}
+.toggle-wrap{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--dim);cursor:pointer;user-select:none}
+.switch{width:36px;height:20px;border-radius:999px;background:#2A3350;position:relative;transition:background .15s;flex:none}
+.switch::after{content:"";position:absolute;width:16px;height:16px;border-radius:50%;background:#8E97AC;top:2px;left:2px;transition:transform .15s,background .15s}
+.toggle-wrap.on .switch{background:var(--accent)}
+.toggle-wrap.on .switch::after{transform:translateX(16px);background:#fff}
+
+.row{display:grid;grid-template-columns:44px 58px 1fr auto;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 14px;margin-bottom:10px;transition:border-color .12s}
+.row:hover{border-color:#39456B}
+.row .rank{font-weight:900;font-size:17px;color:var(--faint);text-align:center;font-variant-numeric:tabular-nums}
+.row .rank.top1{color:var(--gold)}.row .rank.top2{color:var(--silver)}.row .rank.top3{color:var(--bronze)}
+.row .photo{width:52px;height:52px;border-radius:12px;object-fit:cover;background:var(--surface2)}
+.row .who{min-width:0}
+.row .who .nm{font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.row .who .nm .mine{font-size:10px;font-weight:700;color:var(--accent2);background:rgba(0,210,255,.12);padding:1px 7px;border-radius:999px;flex:none}
+.row .who .tags{display:flex;gap:5px;margin-top:3px;overflow:hidden}
+.row .who .tags span{font-size:11px;color:var(--dim);background:var(--surface2);padding:1px 8px;border-radius:999px;white-space:nowrap}
+.row .bars{display:flex;gap:10px;align-items:center;min-width:0}
+.minibar{display:flex;flex-direction:column;gap:3px;min-width:44px}
+.minibar .mb-label{font-size:10px;color:var(--faint);text-align:center}
+.minibar .mb-track{width:100%;height:5px;border-radius:3px;background:#222A3E;overflow:hidden}
+.minibar .mb-fill{height:100%;border-radius:3px}
+.row .overall{text-align:right;min-width:64px}
+.row .overall .sc{font-weight:900;font-size:20px;color:var(--text);font-variant-numeric:tabular-nums}
+.row .overall .lb{font-size:10px;color:var(--faint);letter-spacing:1px}
+.row .overall .none{font-size:12px;color:var(--faint)}
+.row .overall .go{color:var(--accent2);font-size:12px;font-weight:700;display:block;margin-top:2px}
+
+/* ===== grid view ===== */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.gcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;position:relative;transition:border-color .12s}
+.gcard:hover{border-color:#39456B}
+.gcard .ph{width:100%;aspect-ratio:1;object-fit:cover;background:var(--surface2)}
+.gcard .body{padding:10px 12px 12px}
+.gcard .nm{font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gcard .rank-tag{position:absolute;top:8px;left:8px;background:rgba(13,15,22,.8);backdrop-filter:blur(4px);font-size:11px;font-weight:900;padding:3px 9px;border-radius:999px;letter-spacing:1px}
+.gcard .sc{font-weight:900;font-size:18px;margin-top:2px;font-variant-numeric:tabular-nums}
+.gcard .sc small{font-size:10px;color:var(--faint);font-weight:500}
+
+/* ===== empty state ===== */
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:var(--r);padding:46px 20px;text-align:center;color:var(--dim)}
+.empty svg{width:52px;height:52px;color:var(--faint);margin:0 auto 14px}
+.empty h3{color:var(--text);font-size:17px;margin-bottom:6px}
+.empty p{font-size:14px;max-width:380px;margin:0 auto 16px}
+
+/* ===== detail ===== */
+.detail-hero{display:grid;grid-template-columns:190px 1fr;gap:22px;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px;margin-top:18px}
+.detail-hero .ph{width:190px;height:190px;border-radius:16px;object-fit:cover;background:var(--surface2)}
+.detail-hero .meta h1{font-size:26px;font-weight:900;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.detail-hero .meta .tags{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.detail-hero .meta .tags span{font-size:12px;color:var(--dim);background:var(--surface2);border:1px solid var(--line);padding:3px 10px;border-radius:999px}
+.detail-hero .meta .desc{font-size:14px;color:var(--dim);white-space:pre-wrap}
+.detail-hero .actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.dim-bars{display:flex;flex-direction:column;gap:12px;margin-top:20px}
+.dim-row{display:grid;grid-template-columns:52px 1fr 46px;align-items:center;gap:12px}
+.dim-row .dl{font-size:13px;font-weight:700}
+.dim-row .track{height:10px;border-radius:6px;background:#222A3E;overflow:hidden}
+.dim-row .fill{height:100%;border-radius:6px;transition:width .4s ease}
+.dim-row .dv{font-weight:900;font-size:15px;text-align:right;font-variant-numeric:tabular-nums}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;margin-top:14px}
+.card h3{font-size:15px;font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card h3 .hint{font-size:12px;font-weight:500;color:var(--faint)}
+.rate-sliders{display:flex;flex-direction:column;gap:16px}
+.rs{display:grid;grid-template-columns:64px 1fr 52px;align-items:center;gap:12px}
+.rs .rl{font-size:13px;font-weight:700;display:flex;align-items:center;gap:7px}
+.rs .rl .dot{width:9px;height:9px;border-radius:50%;flex:none}
+.rs input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:4px;background:linear-gradient(to right,var(--accent) var(--fill,50%),#222A3E var(--fill,50%));outline:none}
+.rs input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;border:4px solid var(--accent);box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer}
+.rs input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:4px solid var(--accent);cursor:pointer}
+.rs .rv{font-weight:900;font-size:16px;text-align:right;font-variant-numeric:tabular-nums}
+.vote-list{display:flex;flex-direction:column;gap:10px}
+.vote{display:grid;grid-template-columns:1fr auto;gap:10px;background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:10px 14px;align-items:center}
+.vote .vn{font-weight:700;font-size:14px}
+.vote .vn small{display:block;font-weight:500;color:var(--faint);font-size:11px}
+.vote .vs{display:flex;gap:8px;font-size:12px;color:var(--dim)}
+.vote .vs b{color:var(--text);font-variant-numeric:tabular-nums}
+.vote.mine{border-color:rgba(0,210,255,.4)}
+.vote .vscore{font-weight:900;font-size:18px;font-variant-numeric:tabular-nums}
+
+/* ===== data view ===== */
+.data-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px}
+.data-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.data-card h3{font-size:15px;font-weight:800;margin-bottom:8px}
+.data-card p{font-size:13px;color:var(--dim);margin-bottom:14px}
+.data-card .btn{width:100%;margin-bottom:8px}
+.steps{font-size:13px;color:var(--dim);line-height:1.9;margin-top:6px}
+.steps b{color:var(--text)}
+.statline{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.pill{font-size:12px;font-weight:700;background:var(--surface2);border:1px solid var(--line);padding:4px 12px;border-radius:999px;color:var(--dim)}
+.pill b{color:var(--text)}
+
+/* ===== modal ===== */
+.modal-back{position:fixed;inset:0;background:rgba(6,8,14,.72);backdrop-filter:blur(4px);z-index:100;display:grid;place-items:center;padding:16px;animation:fadeIn .15s ease}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:18px;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;padding:22px;animation:popIn .18s ease;box-shadow:var(--shadow)}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.modal-head h2{font-size:19px;font-weight:900}
+.modal-x{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:var(--dim)}
+.modal-x:hover{background:var(--surface2);color:var(--text)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes popIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;font-weight:700;margin-bottom:6px;color:var(--dim)}
+.field input[type=text],.field input[type=url],.field textarea{width:100%;background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;font-size:14px;outline:none;transition:border-color .12s}
+.field input:focus,.field textarea:focus{border-color:var(--accent)}
+.field textarea{resize:vertical;min-height:74px}
+.photo-pick{display:flex;gap:10px;align-items:center}
+.photo-prev{width:84px;height:84px;border-radius:14px;object-fit:cover;background:var(--surface2);border:1px solid var(--line)}
+.photo-actions{display:flex;flex-direction:column;gap:8px}
+.photo-actions .btn{justify-content:flex-start}
+.hint-txt{font-size:12px;color:var(--faint);margin-top:6px;line-height:1.6}
+
+/* cropper modal */
+.crop-wrap{max-width:640px}
+.crop-box{position:relative;background:#0A0C12;border-radius:12px;overflow:hidden;max-height:52vh}
+.crop-box img{max-width:100%;display:block}
+.crop-tools{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+
+/* ===== toast ===== */
+#toasts{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;width:min(92vw,420px)}
+.toast{background:var(--surface2);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:12px;padding:11px 16px;font-size:14px;box-shadow:var(--shadow);animation:toastIn .2s ease;display:flex;gap:10px;align-items:center}
+.toast.ok{border-left-color:var(--ok)}
+.toast.err{border-left-color:var(--danger)}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+footer.site{margin-top:34px;border-top:1px solid var(--line);padding:20px 0 34px;color:var(--faint);font-size:12px;line-height:1.8}
+footer.site b{color:var(--dim)}
+
+/* ===== responsive ===== */
+@media (max-width:760px){
+  .header-in{height:56px}
+  .nav button{padding:7px 10px;font-size:13px}
+  .logo{font-size:16px}
+  .logo small{display:none}
+  .btn{padding:9px 14px;font-size:13px}
+  .podium{gap:8px}
+  .podium-card{padding:12px 8px 10px}
+  .podium-photo{width:56px;height:56px}
+  .first .podium-photo{width:70px;height:70px}
+  .podium-score{font-size:18px}
+  .first .podium-score{font-size:22px}
+  .row{grid-template-columns:34px 50px 1fr;gap:10px;padding:9px 10px}
+  .row .photo{width:46px;height:46px;border-radius:10px}
+  .row .bars{display:none}
+  .row .overall{grid-column:2/4;text-align:left;display:flex;align-items:center;gap:8px;min-width:0}
+  .row .overall .go{margin:0 0 0 auto}
+  .detail-hero{grid-template-columns:1fr;padding:16px}
+  .detail-hero .ph{width:120px;height:120px}
+  .data-grid{grid-template-columns:1fr}
+  .rs{grid-template-columns:56px 1fr 44px}
+  .grid{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:420px){
+  .sortbar .chip{padding:6px 10px;font-size:12px}
+}
+</style>
+<body>
+<header class="top">
+  <div class="container header-in">
+    <div class="logo">
+      <span class="logo-badge"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17V7l7 5 7-5v10"/></svg></span>
+      <span>KOL 評分榜<small>RATE THE STARS</small></span>
+    </div>
+    <nav class="nav">
+      <button data-nav="rank" class="active">排行榜</button>
+      <button data-nav="data">資料</button>
+    </nav>
+    <button class="btn btn-primary header-add" id="btnAdd">＋ 新增網紅</button>
+  </div>
+</header>
+
+<main class="container" id="view-rank">
+  <div class="sortbar">
+    <button class="chip active" data-sort="overall">綜合</button>
+    <button class="chip" data-sort="attraction">顏值</button>
+    <button class="chip" data-sort="personality">性格</button>
+    <button class="chip" data-sort="social">社交</button>
+    <button class="chip" data-sort="richness">財富</button>
+    <label class="toggle-wrap" id="onlyMine"><span class="switch"></span><span>只看我評過的</span></label>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.2-3.2"/></svg>
+      <input type="text" id="searchBox" placeholder="搜尋網紅名稱或標籤…">
+    </div>
+  </div>
+  <div id="podium"></div>
+  <div id="rankList"></div>
+</main>
+
+<main class="container hidden" id="view-detail"></main>
+
+<main class="container hidden" id="view-data">
+  <div class="detail-hero" style="grid-template-columns:1fr;padding:20px">
+    <div>
+      <h1 style="font-size:22px;font-weight:900">共用資料庫</h1>
+      <p class="desc" style="margin-top:6px">資料預設只存在你自己的瀏覽器裡，不會自動上傳。想要朋友一起評分，把「匯出」的檔案傳給對方，或把合併後的 <b>data.json</b> 更新到 GitHub 上，大家重新打開網站就會自動合併共用資料。</p>
+    </div>
+  </div>
+  <div class="data-grid">
+    <div class="data-card">
+      <h3>我的設定</h3>
+      <p>設一個暱稱，別人合併你的資料時會看到這個名字。</p>
+      <div class="field"><input type="text" id="nick" placeholder="暱稱（例如：小明）" maxlength="20"></div>
+      <button class="btn btn-primary" id="btnSaveNick" style="width:100%">儲存暱稱</button>
+    </div>
+    <div class="data-card">
+      <h3>匯出資料</h3>
+      <p>下載一份 JSON，內含所有網紅與所有人的評分。傳給朋友，或在下方匯入合併。</p>
+      <button class="btn btn-primary" id="btnExport">下載資料檔（JSON）</button>
+      <button class="btn btn-ghost" id="btnDataJson">下載共用檔 data.json（更新到 GitHub 用）</button>
+    </div>
+    <div class="data-card">
+      <h3>匯入合併</h3>
+      <p>把朋友傳來的 JSON 匯入，會自動合併：新網紅加入、重複網紅的評分合併、不覆蓋你本地的資料。</p>
+      <input type="file" id="fileImport" accept="application/json,.json" class="hidden">
+      <button class="btn btn-ghost" id="btnImport">選擇 JSON 檔案匯入</button>
+      <div class="hint-txt" id="mergeInfo"></div>
+    </div>
+    <div class="data-card">
+      <h3>本機資料</h3>
+      <p>目前這台裝置的瀏覽器儲存了這些資料：</p>
+      <div class="statline" id="statBox"></div>
+      <button class="btn btn-danger" id="btnReset">清空本機所有資料</button>
+      <div class="steps" style="margin-top:12px">
+        同步流程：<br>
+        1. 在「排行榜」新增網紅、上傳相片並評分<br>
+        2. 按「匯出資料」取得 JSON<br>
+        3. 在 GitHub 把 JSON 內容貼進 <b>data.json</b> 並提交<br>
+        4. 朋友重新打開網站就會自動合併
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ===== 新增/編輯 彈窗 ===== -->
+<div class="modal-back hidden" id="formModal">
+  <div class="modal">
+    <div class="modal-head"><h2 id="formTitle">新增網紅</h2><button class="modal-x" data-close="formModal"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="field">
+      <label>相片</label>
+      <div class="photo-pick">
+        <img id="formPhoto" class="photo-prev" alt="">
+        <div class="photo-actions">
+          <button class="btn btn-ghost btn-sm" id="btnPickPhoto">從裝置選擇</button>
+          <button class="btn btn-ghost btn-sm" id="btnPasteUrl">貼上圖片網址</button>
+          <button class="btn btn-ghost btn-sm hidden" id="btnRemovePhoto">移除相片</button>
+        </div>
+      </div>
+      <input type="file" id="filePhoto" accept="image/*" class="hidden">
+      <div class="hint-txt">上傳後可以裁剪、旋轉、翻轉。支援 JPG / PNG / WebP，會自動壓縮後存進資料檔。</div>
+    </div>
+    <div class="field">
+      <label>名稱</label>
+      <input type="text" id="fName" placeholder="網紅名稱" maxlength="30">
+    </div>
+    <div class="field">
+      <label>標籤（逗號分隔）</label>
+      <input type="text" id="fTags" placeholder="例如：直播, 短視頻, 電競" maxlength="60">
+    </div>
+    <div class="field">
+      <label>備註 / 簡介</label>
+      <textarea id="fDesc" placeholder="一句話介紹（可留空）" maxlength="200"></textarea>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-ghost" style="flex:1" data-close="formModal">取消</button>
+      <button class="btn btn-primary" style="flex:1" id="btnSaveForm">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 裁剪 彈窗 ===== -->
+<div class="modal-back hidden" id="cropModal">
+  <div class="modal crop-wrap">
+    <div class="modal-head"><h2>裁剪相片</h2><button class="modal-x" data-close="cropModal"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="crop-box"><img id="cropImg" alt=""></div>
+    <div class="crop-tools">
+      <button class="btn btn-ghost btn-sm" id="cropRotate">⟳ 旋轉</button>
+      <button class="btn btn-ghost btn-sm" id="cropFlip">⇋ 翻轉</button>
+      <button class="btn btn-ghost btn-sm" id="cropZoomIn">＋ 放大</button>
+      <button class="btn btn-ghost btn-sm" id="cropZoomOut">－ 縮小</button>
+      <button class="btn btn-primary btn-sm" id="cropOk" style="margin-left:auto">套用</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
+<script>
+"use strict";
+/* ============ helpers ============ */
+const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const LS_KEY="kolRating.v1";
+const PLACEHOLDER="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2A3350"/><stop offset="1" stop-color="#1B2132"/></linearGradient></defs><rect width="200" height="200" fill="url(#g)"/><circle cx="100" cy="78" r="34" fill="#4A5578"/><path d="M40 175c4-38 30-56 60-56s56 18 60 56z" fill="#4A5578"/></svg>');
+const fmt=n=>Number.isFinite(n)?n.toFixed(1):"–";
+const mean=a=>a.length? a.reduce((x,y)=>x+y,0)/a.length : NaN;
+const DIMS=[
+  {key:"attraction",label:"顏值",color:"var(--c-face)"},
+  {key:"personality",label:"性格",color:"var(--c-person)"},
+  {key:"social",label:"社交",color:"var(--c-social)"},
+  {key:"richness",label:"財富",color:"var(--c-rich)"}
+];
+const DIMC={attraction:"#FF5D8F",personality:"#7C5CFF",social:"#00D2FF",richness:"#FFB84D"};
+
+/* ============ state ============ */
+let state={v:1,voterId:uid(),nick:"",entries:[]};
+function load(){
+  try{const raw=localStorage.getItem(LS_KEY);if(raw){const d=JSON.parse(raw);
+    state.voterId=d.voterId||state.voterId;state.nick=d.nick||"";state.entries=Array.isArray(d.entries)?d.entries:[];}
+  }catch(e){console.warn("load fail",e)}
+}
+function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(state))}catch(e){toast("儲存失敗：瀏覽器空間不足，可能是相片太大","err")}}
+
+/* ============ toast ============ */
+function toast(msg,type){const t=document.createElement("div");t.className="toast "+(type||"");t.textContent=msg;$("#toasts").appendChild(t);setTimeout(()=>{t.style.opacity="0";t.style.transition="opacity .3s";setTimeout(()=>t.remove(),320)},2600)}
+
+/* ============ scores ============ */
+function scores(e){
+  const r={votes:e.votes.length||0,overall:NaN,attraction:NaN,personality:NaN,social:NaN,richness:NaN};
+  if(!r.votes)return r;
+  DIMS.forEach(d=>{r[d.key]=mean(e.votes.map(v=>Number(v[d.key])||0))});
+  r.overall=mean(DIMS.map(d=>r[d.key]));
+  return r;
+}
+function myVote(e){return e.votes.find(v=>v.voter===state.voterId)||null}
+
+/* ============ data merge ============ */
+function mergeData(json){
+  if(!json||!Array.isArray(json.entries))throw new Error("格式不正確");
+  let added=0,merged=0;
+  json.entries.forEach(en=>{
+    if(!en||!en.name)return;
+    const id=en.id||uid();
+    let local=state.entries.find(x=>x.id===id);
+    if(!local){state.entries.push({id,name:String(en.name),photo:en.photo||"",tags:Array.isArray(en.tags)?en.tags.map(String):[],desc:en.desc||"",createdBy:en.createdBy||"",createdAt:en.createdAt||Date.now(),votes:[]});local=state.entries[state.entries.length-1];added++;}
+    (Array.isArray(en.votes)?en.votes:[]).forEach(v=>{
+      if(!v||!v.voter||!v.attraction)return;
+      const i=local.votes.findIndex(x=>x.voter===v.voter);
+      if(i>=0){if((v.at||0)>=(local.votes[i].at||0))local.votes[i]=v;merged++;}
+      else{local.votes.push(v);merged++;}
+    });
+  });
+  return {added,merged};
+}
+
+/* ============ render: leaderboard ============ */
+let sortKey="overall",onlyMine=false;
+function rankedList(){
+  let list=state.entries.slice();
+  const kw=($("#searchBox").value||"").trim().toLowerCase();
+  if(kw)list=list.filter(e=>(e.name||"").toLowerCase().includes(kw)||(e.tags||[]).some(t=>t.toLowerCase().includes(kw)));
+  if(onlyMine)list=list.filter(e=>myVote(e));
+  const sc=e=>scores(e);
+  list.sort((a,b)=>{
+    const sa=sc(a),sb=sc(b);
+    const va=sortKey==="overall"?sa.overall:sa[sortKey],vb=sortKey==="overall"?sb.overall:sb[sortKey];
+    if(Number.isFinite(va)&&Number.isFinite(vb))return vb-va||String(a.name).localeCompare(String(b.name),"zh-Hant");
+    if(Number.isFinite(va))return -1; if(Number.isFinite(vb))return 1;
+    return String(a.name).localeCompare(String(b.name),"zh-Hant");
+  });
+  return list;
+}
+function renderRank(){
+  const list=rankedList();
+  const rated=list.filter(e=>scores(e).votes>0);
+  const podiumEl=$("#podium"),listEl=$("#rankList");
+  /* podium: overall top3 */
+  if(rated.length>=3){
+    const top=rated.slice().sort((a,b)=>scores(b).overall-scores(a).overall).slice(0,3);
+    const order=[top[1],top[0],top[2]];
+    const cls=["second","first","third"],mdl=["#2","#1","#3"];
+    podiumEl.innerHTML=`<div class="podium">`+order.map((e,i)=>`
+      <a class="podium-card ${cls[i]}" href="#/kol/${e.id}">
+        <span class="podium-medal">${mdl[i]}</span>
+        <img class="podium-photo" src="${esc(photoSrc(e))}" alt="" loading="lazy" onerror="this.src='${PLACEHOLDER}'">
+        <div class="podium-name">${esc(e.name)}</div>
+        <div class="podium-score">${fmt(scores(e).overall)}<small> 綜合</small></div>
+      </a>`).join("")+`</div>`;
+  }else podiumEl.innerHTML="";
+  const kw=($("#searchBox").value||"").trim().toLowerCase();
+  if(!list.length){
+    listEl.innerHTML=`<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 4H4v2a3 3 0 0 0 3 3M17 4h3v2a3 3 0 0 1-3 3"/></svg>
+      <h3>${kw? "找不到符合的網紅":"排行榜還是空的"}</h3>
+      <p>${kw? "試試其他關鍵字。":"按右上角「新增網紅」加入第一位，邀請朋友一起評分，即時看排名。"}</p>
+      ${kw?"":"<button class='btn btn-primary' onclick=\"openForm()\">＋ 新增第一位網紅</button>"}
+    </div>`;
+    return;
+  }
+  const row=e=>{const i=list.indexOf(e)+1;const sc=scores(e);const mv=myVote(e);
+    const rankCls=i<=3?` top${i}`:"";
+    return `<a class="row" href="#/kol/${e.id}">
+      <div class="rank${rankCls}">${i}</div>
+      <img class="photo" src="${esc(photoSrc(e))}" alt="" loading="lazy" onerror="this.src='${PLACEHOLDER}'">
+      <div class="who">
+        <div class="nm">${esc(e.name)}${mv?`<span class="mine">已評</span>`:""}</div>
+        ${e.tags&&e.tags.length?`<div class="tags">${e.tags.slice(0,3).map(t=>`<span>${esc(t)}</span>`).join("")}</div>`:""}
+      </div>
+      <div class="bars">${DIMS.map(d=>{const v=sc[d.key];return `<div class="minibar"><span class="mb-label">${d.label}</span><div class="mb-track"><div class="mb-fill" style="width:${Number.isFinite(v)?v*10:0}%;background:${DIMC[d.key]}"></div></div></div>`}).join("")}</div>
+      <div class="overall">${sc.votes?`<div class="sc">${fmt(sortKey==="overall"?sc.overall:sc[sortKey])}</div><div class="lb">${sortKey==="overall"?"綜合 · "+sc.votes+" 票":(DIMS.find(d=>d.key===sortKey).label+"分")}</div>`:`<div class="none">未評</div>`}<span class="go">評分 →</span></div>
+    </a>`;
+  };
+  listEl.innerHTML=list.map(row).join("");
+}
+function photoSrc(e){return e.photo?e.photo:PLACEHOLDER}
+
+/* ============ render: detail ============ */
+function renderDetail(id){
+  const e=state.entries.find(x=>x.id===id);
+  const v=$("#view-detail");
+  if(!e){v.innerHTML=`<div class="empty"><h3>找不到這位網紅</h3><p>可能已被刪除。</p><button class="btn btn-primary" onclick="location.hash='#/'">回排行榜</button></div>`;return;}
+  const sc=scores(e),mv=myVote(e);
+  v.innerHTML=`
+    <div class="detail-hero">
+      <img class="ph" src="${esc(photoSrc(e))}" alt="" onerror="this.src='${PLACEHOLDER}'">
+      <div class="meta">
+        <h1>${esc(e.name)} ${sc.votes?`<span class="pill" style="font-size:13px">綜合 ${fmt(sc.overall)}</span>`:""}</h1>
+        ${e.tags&&e.tags.length?`<div class="tags">${e.tags.map(t=>`<span>${esc(t)}</span>`).join("")}</div>`:""}
+        ${e.desc?`<p class="desc">${esc(e.desc)}</p>`:""}
+        <div class="dim-bars">${DIMS.map(d=>{const val=sc[d.key];return `<div class="dim-row"><div class="dl" style="color:${DIMC[d.key]}">${d.label}</div><div class="track"><div class="fill" style="width:${Number.isFinite(val)?val*10:0}%;background:${DIMC[d.key]}"></div></div><div class="dv" style="color:${DIMC[d.key]}">${fmt(val)}</div></div>`}).join("")}</div>
+        <div class="actions">
+          <button class="btn btn-primary btn-sm" onclick="openForm('${e.id}')">編輯</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteKol('${e.id}')">刪除</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>我的評分 <span class="hint">1–10 分，四項都填後儲存</span></h3>
+      <div class="rate-sliders">${DIMS.map(d=>{const val=mv?Number(mv[d.key]):5;return `<div class="rs">
+        <div class="rl"><span class="dot" style="background:${DIMC[d.key]}"></span>${d.label}</div>
+        <input type="range" min="1" max="10" step="1" value="${val}" data-dim="${d.key}" style="--fill:${(val-1)/9*100}%">
+        <div class="rv" data-val="${d.key}" style="color:${DIMC[d.key]}">${val}</div>
+      </div>`}).join("")}</div>
+      <button class="btn btn-primary" id="btnSaveRate" style="margin-top:16px;width:100%">${mv?"更新我的評分":"儲存評分"}</button>
+    </div>
+    <div class="card">
+      <h3>全部評分 <span class="hint">${sc.votes} 票</span></h3>
+      ${sc.votes?`<div class="vote-list">${e.votes.slice().sort((a,b)=>(b.at||0)-(a.at||0)).map(v=>{const tot=mean(DIMS.map(d=>Number(v[d.key])||0));return `<div class="vote${v.voter===state.voterId?" mine":""}">
+        <div><div class="vn">${esc(v.nick||"匿名")} ${v.voter===state.voterId?"<small>(你)</small>":""}</div>
+        <div class="vs">${DIMS.map(d=>`<span>${d.label} <b>${v[d.key]}</b></span>`).join(" · ")}</div></div>
+        <div class="vscore" style="color:${tot>=7.5?"var(--ok)":tot>=5?"var(--accent2)":"var(--dim)"}">${fmt(tot)}</div>
+      </div>`}).join("")}</div>`:`<p style="font-size:13px;color:var(--faint)">還沒有人評分，來當第一個。</p>`}
+    </div>`;
+  v.querySelectorAll(".rs input").forEach(inp=>{
+    inp.addEventListener("input",()=>{const d=inp.dataset.dim;const val=+inp.value;inp.style.setProperty("--fill",(val-1)/9*100+"%");v.querySelector(`[data-val="${d}"]`).textContent=val;});
+  });
+  $("#btnSaveRate").onclick=()=>{
+    const vote={voter:state.voterId,nick:state.nick||"匿名",at:Date.now()};
+    DIMS.forEach(d=>{vote[d.key]=+v.querySelector(`[data-dim="${d.key}"]`).value});
+    const i=e.votes.findIndex(x=>x.voter===state.voterId);
+    if(i>=0)e.votes[i]=vote;else e.votes.push(vote);
+    save();toast("評分已儲存","ok");renderDetail(id);renderRank();
+  };
+}
+
+/* ============ render: data view ============ */
+function renderData(){
+  $("#nick").value=state.nick||"";
+  const rated=state.entries.filter(e=>scores(e).votes>0);
+  $("#statBox").innerHTML=`<span class="pill">網紅 <b>${state.entries.length}</b></span><span class="pill">已評 <b>${rated.length}</b></span><span class="pill">總票數 <b>${state.entries.reduce((n,e)=>n+e.votes.length,0)}</b></span>`;
+}
+
+/* ============ router ============ */
+function router(){
+  const h=location.hash||"#/";
+  const m=h.match(/^#\/kol\/(.+)$/);
+  $$("main").forEach(x=>x.classList.add("hidden"));
+  $$(".nav button").forEach(b=>b.classList.remove("active"));
+  if(m){$("#view-detail").classList.remove("hidden");$(".nav button[data-nav=rank]").classList.add("active");renderDetail(decodeURIComponent(m[1]));}
+  else if(h.startsWith("#/data")){$("#view-data").classList.remove("hidden");$(".nav button[data-nav=data]").classList.add("active");renderData();}
+  else{$("#view-rank").classList.remove("hidden");$(".nav button[data-nav=rank]").classList.add("active");renderRank();}
+  window.scrollTo(0,0);
+}
+window.addEventListener("hashchange",router);
+
+/* ============ form (add / edit) ============ */
+let editId=null,pendingPhoto="";
+function openForm(id){
+  editId=id||null;pendingPhoto="";
+  const e=id?state.entries.find(x=>x.id===id):null;
+  $("#formTitle").textContent=e?"編輯網紅":"新增網紅";
+  $("#fName").value=e?e.name:"";
+  $("#fTags").value=e?(e.tags||[]).join(", "):"";
+  $("#fDesc").value=e?e.desc:"";
+  pendingPhoto=e?e.photo:"";
+  syncPhotoUI();
+  $("#formModal").classList.remove("hidden");
+}
+function syncPhotoUI(){
+  const img=$("#formPhoto");
+  if(pendingPhoto){img.src=pendingPhoto;img.classList.remove("hidden");$("#btnRemovePhoto").classList.remove("hidden");}
+  else{img.src=PLACEHOLDER;img.classList.add("hidden");$("#btnRemovePhoto").classList.add("hidden");}
+}
+function closeModal(id){$("#"+id).classList.add("hidden");if(id==="cropModal"&&cropper){cropper.destroy();cropper=null;}}
+function saveForm(){
+  const name=$("#fName").value.trim();
+  if(!name){toast("請填名稱","err");return;}
+  const tags=$("#fTags").value.split(/[,，]/).map(s=>s.trim()).filter(Boolean).slice(0,6);
+  const entry={name,tags,desc:$("#fDesc").value.trim(),photo:pendingPhoto};
+  if(editId){
+    const e=state.entries.find(x=>x.id===editId);Object.assign(e,entry);
+    toast("已更新","ok");
+  }else{
+    state.entries.unshift({id:uid(),...entry,createdBy:state.voterId,createdAt:Date.now(),votes:[]});
+    toast("已新增，快去評分","ok");
+  }
+  save();closeModal("formModal");router();
+}
+function deleteKol(id){
+  if(!confirm("確定刪除這位網紅？所有評分會一起刪除。"))return;
+  state.entries=state.entries.filter(x=>x.id!==id);save();toast("已刪除","ok");router();
+}
+
+/* ============ photo: upload + crop ============ */
+let cropper=null,cropSource=null;
+function startCrop(dataUrl){
+  cropSource=dataUrl;
+  $("#cropImg").src=dataUrl;
+  $("#cropModal").classList.remove("hidden");
+  if(cropper)cropper.destroy();
+  cropper=new Cropper($("#cropImg"),{aspectRatio:1,viewMode:1,autoCropArea:.85,background:false,responsive:true});
+}
+$("#btnPickPhoto").onclick=()=>$("#filePhoto").click();
+$("#filePhoto").onchange=e=>{
+  const f=e.target.files[0];e.target.value="";
+  if(!f)return;
+  if(!f.type.startsWith("image/")){toast("請選擇圖片檔案","err");return;}
+  if(f.size>15*1024*1024){toast("圖片太大，請選 15MB 以內","err");return;}
+  const r=new FileReader();r.onload=()=>startCrop(r.result);r.readAsDataURL(f);
+};
+$("#btnPasteUrl").onclick=()=>{
+  const url=prompt("貼上圖片網址（https://…）：");if(!url)return;
+  const im=new Image();
+  im.onload=()=>{pendingPhoto=url;syncPhotoUI();toast("已使用圖片網址；若之後圖片失效可重新上傳","ok");};
+  im.onerror=()=>toast("這個網址無法載入圖片","err");
+  im.src=url;
+};
+$("#btnRemovePhoto").onclick=()=>{pendingPhoto="";syncPhotoUI();};
+$("#cropRotate").onclick=()=>cropper&&cropper.rotate(90);
+$("#cropFlip").onclick=()=>{if(cropper){const d=cropper.getData();cropper.scaleX(-(d.scaleX||1));}};
+$("#cropZoomIn").onclick=()=>cropper&&cropper.zoom(.1);
+$("#cropZoomOut").onclick=()=>cropper&&cropper.zoom(-.1);
+$("#cropOk").onclick=()=>{
+  if(!cropper)return;
+  try{
+    const c=cropper.getCroppedCanvas({width:640,height:640,imageSmoothingQuality:"high"});
+    pendingPhoto=c.toDataURL("image/jpeg",.82);
+    syncPhotoUI();closeModal("cropModal");toast("相片已更新","ok");
+  }catch(err){toast("無法處理圖片，請換一張試試","err");closeModal("cropModal");}
+};
+
+/* ============ data actions ============ */
+function download(name,json){const b=new Blob([JSON.stringify(json)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000);}
+function exportJson(){return {app:"kol-rating",version:1,exportedAt:new Date().toISOString(),entries:state.entries}}
+$("#btnExport").onclick=()=>{if(!state.entries.length){toast("還沒有資料可以匯出","err");return;}download("kol-rating-data.json",exportJson());toast("已匯出 JSON","ok");};
+$("#btnDataJson").onclick=()=>{if(!state.entries.length){toast("還沒有資料可以匯出","err");return;}download("data.json",exportJson());toast("把這個檔案的內容更新到 GitHub 的 data.json","ok");};
+$("#btnImport").onclick=()=>$("#fileImport").click();
+$("#fileImport").onchange=e=>{
+  const f=e.target.files[0];e.target.value="";
+  if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{try{const res=mergeData(JSON.parse(r.result));save();toast(`已合併：新增 ${res.added} 位，合併 ${res.merged} 票評分`,"ok");renderData();router();}catch(err){toast("檔案格式不正確："+err.message,"err")}};
+  r.readAsText(f,"utf-8");
+};
+$("#btnSaveNick").onclick=()=>{state.nick=$("#nick").value.trim().slice(0,20);save();toast("暱稱已儲存","ok");};
+$("#btnReset").onclick=()=>{if(!confirm("確定清空這台裝置上的所有網紅與評分？此操作無法復原。"))return;localStorage.removeItem(LS_KEY);load();toast("已清空","ok");router();renderData();};
+
+/* ============ misc events ============ */
+$$(".nav button").forEach(b=>b.onclick=()=>location.hash=b.dataset.nav==="rank"?"#/":"#/data");
+$("#btnAdd").onclick=()=>openForm();
+$$("[data-close]").forEach(b=>b.onclick=()=>closeModal(b.dataset.close));
+$$(".chip").forEach(c=>c.onclick=()=>{$$(".chip").forEach(x=>x.classList.remove("active"));c.classList.add("active");sortKey=c.dataset.sort;renderRank();});
+$("#onlyMine").onclick=()=>{onlyMine=!onlyMine;$("#onlyMine").classList.toggle("on",onlyMine);renderRank();};
+$("#searchBox").addEventListener("input",renderRank);
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal("formModal");closeModal("cropModal");}});
+$("#cropModal").addEventListener("click",e=>{if(e.target.id==="cropModal")closeModal("cropModal")});
+$("#formModal").addEventListener("click",e=>{if(e.target.id==="formModal")closeModal("formModal")});
+$("#btnSaveForm").onclick=saveForm;
+
+/* ============ init ============ */
+(async function init(){
+  load();
+  try{
+    const r=await fetch("./data.json",{cache:"no-store"});
+    if(r.ok){const res=mergeData(await r.json());if(res.added+res.merged){save();toast(`已合併 GitHub 共用資料（新增 ${res.added} 位）`,"ok");}}
+  }catch(e){/* 本地預覽 file:// 無法 fetch，屬正常 */}
+  router();
+  renderData();
+})();
+</script>
+</body>
