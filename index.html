@@ -614,7 +614,6 @@ function renderTour(){
     if(!tour.current)advanceTour();
   }
   const totalIn=state.entries.filter(e=>(e.gender||"male")===g).length;
-  if(totalIn<2){v.innerHTML=`<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍</span></div><div class="empty"><h3>人數唔夠</h3><p>而家得 ${totalIn} 位${gLabel}同學，要最少 2 位先開到賽。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;return;}
   if(tour.champion){
     const c=state.entries.find(x=>x.id===tour.champion);
     const other=g==="female"?"male":"female";
@@ -632,7 +631,11 @@ function renderTour(){
     </div>`;
     tourSave();return;
   }
-  if(!tour.current){v.innerHTML=`<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍</span></div><div class="empty"><h3>冇得玩</h3><p>要最少 2 位${gLabel}同學先可以開淘汰賽。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;return;}
+  if(totalIn<2){v.innerHTML=`<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍</span></div><div class="empty"><h3>人數唔夠</h3><p>而家得 ${totalIn} 位${gLabel}同學，要最少 2 位先開到賽。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;return;}
+  if(!tour.current){
+    if(totalIn>=2){tourStart(g);return;}
+    v.innerHTML=`<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍</span></div><div class="empty"><h3>冇得玩</h3><p>要最少 2 位${gLabel}同學先可以開淘汰賽。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;return;
+  }
   const A=state.entries.find(x=>x.id===tour.current[0]);
   const B=state.entries.find(x=>x.id===tour.current[1]);
   const total=tour.matchNo+tour.pool.length+tour.nextPool.length+(tour.current?2:0)-1;
