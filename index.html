@@ -170,6 +170,7 @@ header.top{position:sticky;top:0;z-index:50;background:rgba(13,15,22,.86);backdr
 .sortbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0 12px}
 .chip{padding:7px 14px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:13px;font-weight:600;color:var(--dim)}
 .chip.active{background:var(--surface2);color:var(--text);border-color:#3A4570}
+.gb-label{font-size:13px;font-weight:700;color:var(--faint);flex:none}
 .chip:hover{border-color:#3A4570}
 .search{flex:1;min-width:180px;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 12px}
 .search svg{width:15px;height:15px;color:var(--faint);flex:none}
@@ -385,6 +386,7 @@ footer.site b{color:var(--dim)}
       <input type="text" id="searchBox" placeholder="搜尋同學名稱或標籤…">
     </div>
   </div>
+  <div class="sortbar gradebar" id="gradeBar"></div>
   <div id="podium"></div>
   <div id="rankList"></div>
 </main>
@@ -997,8 +999,25 @@ let sortKey="overall",onlyMine=false,board="male";
 function genderCn(g){return g==="female"?"女生":g==="teacher"?"老師":"男生";}
 function boardCn(g){return g==="female"?"女生榜":g==="teacher"?"老師榜":"男生榜";}
 function boardLabel(){return boardCn(board)}
+/* 年級：由班別 tag（如 6C-5 / 6A）抽第一個數字做年級；冇 tag 嘅舊同學淨係喺「全部」見到 */
+function gradeOf(e){
+  const tags=Array.isArray(e.tags)?e.tags:[];
+  for(const t of tags){
+    const m=String(t).match(/^(\d{1,2})[A-Za-z]?-\d+$/)||String(t).match(/^(\d{1,2})[A-Za-z]/);
+    if(m)return m[1];
+  }
+  return null;
+}
+let gradeFilter="all";
+function renderGradeBar(){
+  const grades=[...new Set(state.entries.map(gradeOf).filter(Boolean))].sort((a,b)=>Number(b)-Number(a));
+  const bar=$("#gradeBar");
+  bar.innerHTML=`<span class="gb-label">年級</span><button class="chip${gradeFilter==="all"?" active":""}" data-grade="all">全部</button>`+grades.map(g=>`<button class="chip${gradeFilter===g?" active":""}" data-grade="${g}">${g}年級</button>`).join("");
+  $$("#gradeBar .chip").forEach(c=>c.onclick=()=>{gradeFilter=c.dataset.grade;renderGradeBar();renderRank();});
+}
 function rankedList(){
   let list=state.entries.filter(e=>(e.gender||"male")===board);
+  if(gradeFilter!=="all")list=list.filter(e=>gradeOf(e)===gradeFilter);
   const kw=($("#searchBox").value||"").trim().toLowerCase();
   if(kw)list=list.filter(e=>(e.name||"").toLowerCase().includes(kw)||(e.tags||[]).some(t=>t.toLowerCase().includes(kw)));
   if(onlyMine)list=list.filter(e=>myVote(e));
@@ -1016,6 +1035,7 @@ function renderRank(){
   const list=rankedList();
   const rated=list.filter(e=>scores(e).votes>0);
   const podiumEl=$("#podium"),listEl=$("#rankList");
+  renderGradeBar();
   $("#boardTitle").textContent=boardLabel();
   $("#boardCount").textContent=list.length?`${list.length} 位同學 · ${genderCn(board)}`:"";
   $("#boardTitle").style.color=board==="female"?"var(--c-face)":board==="teacher"?"var(--gold)":"var(--accent2)";
@@ -1037,9 +1057,9 @@ function renderRank(){
   if(!list.length){
     listEl.innerHTML=`<div class="empty">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 4H4v2a3 3 0 0 0 3 3M17 4h3v2a3 3 0 0 1-3 3"/></svg>
-      <h3>${kw? "找不到符合的同學":"呢個榜仲係空嘅"}</h3>
-      <p>${kw? "試試其他關鍵字。":`按右上角「新增同學」加入第一位${genderCn(board)}同學，邀請朋友一起評分，即時看排名。`}</p>
-      ${kw?"":"<button class='btn btn-primary' onclick=\"openForm(null,'"+board+"')\">＋ 新增第一位同學</button>"}
+      <h3>${kw? "找不到符合的同學":gradeFilter!=="all"?"呢個年級仲未有人":"呢個榜仲係空嘅"}</h3>
+      <p>${kw? "試試其他關鍵字。":gradeFilter!=="all"?"可以㩒「全部」睇返全榜，或者右上角「新增同學」加入新同學。":`按右上角「新增同學」加入第一位${genderCn(board)}同學，邀請朋友一起評分，即時看排名。`}</p>
+      ${kw||gradeFilter!=="all"?"":"<button class='btn btn-primary' onclick=\"openForm(null,'"+board+"')\">＋ 新增第一位同學</button>"}
     </div>`;
     return;
   }

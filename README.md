@@ -18,6 +18,7 @@
 - 淘汰賽（`#/tour/male`、`#/tour/female`）亦已雲端即時同步：每場對決所有人見到同一份，投票合併（每人一票可改），滿 3 票自動晉級（多數者贏）或按「鎖定賽果」，完賽後顯示合併賽果表（collection `tournaments`）。配對用標準單淘汰 bracket：人數唔係 2 嘅次方時，輪空只會喺第一輪出現（自動晉級），之後每輪人人都要對賽，唔會有人一場未打就入決賽（欄位 `byes`）。
 - 所有 `prompt()`/`confirm()`（房間金鑰輸入、刪除確認、清快取確認、貼網址）已改做頁內彈窗（`#promptModal`/`#confirmModal`）——App 內置瀏覽器多數唔顯示原生彈窗，會令儲存／編輯／開賽「冇反應」。
 - 三個榜（男生榜 / 女生榜 / 老師榜）：`entries.gender` 支援 `male / female / teacher`，老師榜嘅人由同學自己新增（表單揀「老師」類別）；淘汰賽各自獨立（`tournaments` 每個榜一個 doc）。
+- 排行榜可按年級篩選：標籤列多咗「年級」欄（全部 / 6年級 / 5年級 / 4年級，由班別 tag 如 `6C-5` 自動抽出）；舊資料冇班別 tag 嘅同學淨係喺「全部」見到，想佢哋有年級就喺編輯時加返班別 tag。
 - 評分唔會再被清空：`toFireEntry` 刻意唔寫 `votes`（避免編輯／換相時用 set+merge 覆蓋成個 votes map）；`fbPatch` 改用 dotted-path `update()` 逐個 voter 合併（`votes.<voter>`），多人投票唔會互沖。
 
 ## 技術
