@@ -672,7 +672,7 @@ function renderCurrent(){
 /* ============ tournament (雲端即時同步 2 揀 1 殘酷二選一) ============ */
 const TOUR_KEY="kolRating.tour.";            // 舊版本機殘酷二選一（只作一次性匯入來源）
 const TOUR_COL="tournaments";                // 雲端 collection（每個榜一個 doc：male / female / teacher）
-const TOUR_CLOSE_VOTES=3;                    // 一個對局滿 3 票自動鎖定（多數者贏）
+const TOUR_CLOSE_VOTES=1;                    // 一個對局 1 票即鎖定（㩒中邊個邊個贏，手快有手慢冇）
 let tour=null,tourGender="male",tourRange="all",tourUnsub=null;
 
 function rangeLabel(r){return r==="all"?"全部":r==="high"?"高中(4-6)":r==="low"?"初中(1-3)":r+"年級";}
@@ -750,7 +750,6 @@ function majorityPick(a,b,votes){
   if(ca>cb)return a;if(cb>ca)return b;
   return (fa<=fb)?a:b;
 }
-function tourLockReady(t){return t&&t.current&&Array.isArray(t.currentVotes)&&t.currentVotes.length>0;}
 function loadTourLocal(g,r){
   r=r||tourRange||"all";
   const t=tourLoad(g,r);
@@ -853,37 +852,6 @@ async function tourPick(id){
   else if(out==="NO_DOC")toast("雲端賽事唔見咗，重新開賽","err");
   renderTour();
 }
-async function tourLock(){
-  if(!tour||!tour.current)return;
-  if(!tourLockReady(tour)){toast("未有人投票，投咗先可以鎖定","err");return;}
-  if(!(await ensureRoom()))return;
-  if(!fbReady){
-    const [a,b]=tour.current;
-    const w=majorityPick(a,b,tour.currentVotes);
-    tour.results.push({a,b,w,votes:tour.currentVotes,at:Date.now()});
-    tour.matchNo++;tour.nextPool.push(w);tour.currentVotes=[];
-    advanceTour(tour);tourSave();renderTour();return;
-  }
-  const ref=db.collection(TOUR_COL).doc(tour._doc||tourDocId(tour.gender,tour.range||"all"));
-  try{
-    await db.runTransaction(async tx=>{
-      const snap=await tx.get(ref);
-      if(!snap.exists)return "NO_DOC";
-      const t=tourFromFire(snap);
-      if(!t.current||t.champion)return "LOCKED";
-      const votes=t.currentVotes||[];
-      if(!votes.length)return "NO_VOTES";
-      const [a,b]=t.current;
-      const w=majorityPick(a,b,votes);
-      t.results.push({a,b,w,votes,at:Date.now()});
-      t.matchNo++;t.nextPool.push(w);t.currentVotes=[];
-      advanceTour(t);t.updatedAt=Date.now();
-      tx.set(ref,tourToFire(t));
-      return "ADVANCED";
-    });
-  }catch(err){console.error("[tour] lock fail",err);toast("鎖定失敗，稍後再試","err");return;}
-  renderTour();
-}
 async function tourImportLocal(g,r){
   r=r||tourRange||"all";
   const localT=tourLoad(g,r);
@@ -915,7 +883,7 @@ function tourStartScreenHTML(g,banner){
       <h3>未有雲端殘酷二選一</h3>
       <p>「${rangeLabel(r)}」而家有 ${totalIn} 位${gLabel}同學可以玩。開賽之後，每場對決大家都會即時見到同一份賽果。</p>
       <button class="btn btn-primary" onclick="tourStart('${g}','${r}')">開始殘酷二選一</button>
-      <div class="tour-hint" style="margin-top:12px">㩒卡片投你一票（每人一票，可以改）· 滿 ${TOUR_CLOSE_VOTES} 票自動晉級（多數者贏）· 投完亦可以㩒「鎖定賽果」即刻晉級。人數唔係 2 嘅次方時，首輪會有人輪空自動晉級，之後每輪人人都要對賽。</div>
+      <div class="tour-hint" style="margin-top:12px">㩒卡片投你一票，1 票即晉級（㩒中邊個邊個贏）· 手快有手慢冇 · 人數唔係 2 嘅次方時，首輪會有人輪空自動晉級，之後每輪人人都要對賽。</div>
     </div>
   </div>`;
 }
@@ -993,7 +961,6 @@ function renderTour(){
   const pct=Math.min(100,Math.round(tour.matchNo/(total||1)*100));
   const va=(tour.currentVotes||[]).filter(x=>x.w===tour.current[0]).length;
   const vb=(tour.currentVotes||[]).filter(x=>x.w===tour.current[1]).length;
-  const voted=(tour.currentVotes||[]).length;
   const byeNote=(tour.byes>0&&tour.matchNo===0)?`<div class="tour-hint" style="margin-top:8px">首輪有 ${tour.byes} 位同學輪空（人數唔係 2 嘅次方，自動晉級）；之後每輪人人都要對賽，唔會有人一場未打就入決賽</div>`:"";
   v.innerHTML=`<div class="tour-wrap">
     <div class="tour-head"><h2>${gLabel}殘酷二選一</h2><span class="sub">${rangeLabel(tour.range||"all")} · 邊個贏？㩒佢投你一票 · 即時同步</span></div>
@@ -1017,9 +984,8 @@ function renderTour(){
         <div class="tg"><span class="vote-badge">${vb} 票</span></div>
       </div>
     </div>
-    <div class="tour-hint">㩒卡片投你一票（每人一票，可以改）· 滿 ${TOUR_CLOSE_VOTES} 票自動晉級（多數者贏）· 賽果即時同步俾所有人</div>
+    <div class="tour-hint">㩒卡片投你一票，1 票即晉級（㩒中邊個邊個贏）· 賽果即時同步俾所有人</div>
     <div style="text-align:center;margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-      <button class="btn btn-primary btn-sm" onclick="tourLock()" ${voted?"":"disabled"}>鎖定賽果（${voted} 票 · 多數者贏）</button>
       <button class="btn btn-ghost btn-sm" onclick="tourStart('${g}','${tour.range||"all"}')">重新開始</button>
     </div>
   </div>`;
