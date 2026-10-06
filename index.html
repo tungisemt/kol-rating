@@ -87,11 +87,14 @@ header.top{position:sticky;top:0;z-index:50;background:rgba(13,15,22,.86);backdr
 .home-card{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:30px 18px;transition:border-color .15s,transform .15s}
 .home-card:hover{border-color:var(--accent);transform:translateY(-3px)}
 .home-card.female:hover{border-color:var(--c-face)}
+.home-card.teacher:hover{border-color:var(--gold)}
 .hc-ico{width:64px;height:64px;border-radius:50%;margin:0 auto 14px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(0,210,255,.16),rgba(124,92,255,.16));border:1px solid var(--line)}
 .home-card.female .hc-ico{background:linear-gradient(135deg,rgba(255,93,143,.16),rgba(255,184,77,.16))}
+.home-card.teacher .hc-ico{background:linear-gradient(135deg,rgba(247,181,0,.16),rgba(255,138,76,.16))}
 .hc-ico svg{width:32px;height:32px}
 .hc-t{font-weight:900;font-size:19px}
 .home-card.female .hc-t{color:var(--c-face)}
+.home-card.teacher .hc-t{color:var(--gold)}
 .hc-s{font-size:13px;color:var(--dim);margin-top:6px;line-height:1.7}
 .board-head{display:flex;align-items:baseline;gap:10px;margin:20px 0 0}
 .board-head h2{font-size:21px;font-weight:900}
@@ -143,6 +146,7 @@ header.top{position:sticky;top:0;z-index:50;background:rgba(13,15,22,.86);backdr
 .seg button{padding:8px 26px;border-radius:9px;font-size:14px;font-weight:700;color:var(--dim)}
 .seg button.on{background:linear-gradient(135deg,var(--accent),#5B3DF0);color:#fff}
 .seg button.on.female{background:linear-gradient(135deg,var(--c-face),#D93B6E)}
+.seg button.on.teacher{background:linear-gradient(135deg,var(--gold),#D97706)}
 
 /* ===== podium ===== */
 .podium{display:grid;grid-template-columns:1fr 1.08fr 1fr;gap:12px;align-items:end;margin:22px 0 6px}
@@ -335,6 +339,7 @@ footer.site b{color:var(--dim)}
     <nav class="nav">
       <button data-nav="male" class="active">男生榜</button>
       <button data-nav="female">女生榜</button>
+      <button data-nav="teacher">老師榜</button>
       <button data-nav="data">資料</button>
     </nav>
     <span class="sync-pill" id="syncPill"><span class="sync-dot"></span>連線中</span>
@@ -345,7 +350,7 @@ footer.site b{color:var(--dim)}
 <main class="container hidden" id="view-home">
   <div class="home-pick">
     <h1>揀一班先</h1>
-    <p>男、女兩個排行榜各自獨立，各自評分即時同步</p>
+    <p>男、女、老師三個排行榜各自獨立，各自評分即時同步</p>
     <div class="home-grid">
       <a class="home-card male" href="#/male">
         <div class="hc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="14" r="4"/><path d="M10 10V2M8 4h4M14 5l6-3-1.5 6L15 7.5"/></svg></div>
@@ -356,6 +361,11 @@ footer.site b{color:var(--dim)}
         <div class="hc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="4"/><path d="M12 13v5M9 18h6M12 21v-3"/></svg></div>
         <div class="hc-t">女生榜</div>
         <div class="hc-s">女同學嘅顏值／性格／社交／財富排行榜</div>
+      </a>
+      <a class="home-card teacher" href="#/teacher">
+        <div class="hc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/><path d="M22 10v6"/></svg></div>
+        <div class="hc-t">老師榜</div>
+        <div class="hc-s">老師嘅顏值／性格／社交／財富排行榜</div>
       </a>
     </div>
   </div>
@@ -452,6 +462,7 @@ footer.site b{color:var(--dim)}
       <div class="seg" id="segGender">
         <button type="button" data-g="male">男</button>
         <button type="button" data-g="female">女</button>
+        <button type="button" data-g="teacher">老師</button>
       </div>
     </div>
     <div class="field">
@@ -563,13 +574,13 @@ function myVote(e){return e.votes.find(v=>v.voter===state.voterId)||null}
 /* ============ firebase realtime sync ============ */
 function toFireEntry(e){
   // 刻意唔寫 votes：votes 只經 fbPatch 逐人合併，避免編輯（例如換相）用 set+merge 覆蓋成個 votes map 而清晒評分
-  return {id:e.id,name:e.name,gender:(e.gender==="female"?"female":"male"),photo:e.photo||"",tags:Array.isArray(e.tags)?e.tags:[],desc:e.desc||"",createdBy:e.createdBy||"",createdAt:e.createdAt||Date.now()};
+  return {id:e.id,name:e.name,gender:(e.gender==="teacher"?"teacher":(e.gender==="female"?"female":"male")),photo:e.photo||"",tags:Array.isArray(e.tags)?e.tags:[],desc:e.desc||"",createdBy:e.createdBy||"",createdAt:e.createdAt||Date.now()};
 }
 function fromFireEntry(d){
   const data=d.data()||{};
   const vm=data.votes||{};
   const votes=Object.keys(vm).map(k=>vm[k]).filter(Boolean);
-  return {id:d.id,name:data.name||"",gender:(data.gender==="female"?"female":"male"),photo:data.photo||"",tags:Array.isArray(data.tags)?data.tags:[],desc:data.desc||"",createdBy:data.createdBy||"",createdAt:data.createdAt||Date.now(),votes};
+  return {id:d.id,name:data.name||"",gender:(data.gender==="teacher"?"teacher":(data.gender==="female"?"female":"male")),photo:data.photo||"",tags:Array.isArray(data.tags)?data.tags:[],desc:data.desc||"",createdBy:data.createdBy||"",createdAt:data.createdAt||Date.now(),votes};
 }
 function cacheEntries(){try{localStorage.setItem(LS_KEY,JSON.stringify(state))}catch(e){}}
 async function fbWrite(e){if(fbReady)await db.collection("entries").doc(e.id).set(toFireEntry(e),{merge:true});}
@@ -652,13 +663,13 @@ function renderCurrent(){
   const m=h.match(/^#\/class\/(.+)$/);
   if(m)renderDetail(decodeURIComponent(m[1]));
   else if(h.startsWith("#/data"))renderData();
-  else if(h==="#/male"||h==="#/female")renderRank();
+  else if(h==="#/male"||h==="#/female"||h==="#/teacher")renderRank();
   else if(h.startsWith("#/tour/")){tourGender=h.slice(7);if(!tour||tour.gender!==tourGender){loadTour(tourGender);}else{renderTour();}}
 }
 
 /* ============ tournament (雲端即時同步 2 揀 1 淘汰賽) ============ */
 const TOUR_KEY="kolRating.tour.";            // 舊版本機淘汰賽（只作一次性匯入來源）
-const TOUR_COL="tournaments";                // 雲端 collection（每性別一個 doc：male / female）
+const TOUR_COL="tournaments";                // 雲端 collection（每個榜一個 doc：male / female / teacher）
 const TOUR_CLOSE_VOTES=3;                    // 一個對局滿 3 票自動鎖定（多數者贏）
 let tour=null,tourGender="male",tourUnsub=null;
 
@@ -843,7 +854,7 @@ function tourDiscardLocal(g){
   tour=null;renderTour();
 }
 function tourStartScreenHTML(g,banner){
-  const gLabel=g==="female"?"女生":"男生";
+  const gLabel=genderCn(g);
   const totalIn=state.entries.filter(e=>(e.gender||"male")===g).length;
   if(totalIn<2){
     return `<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍 · 雲端即時同步 · 人數唔係 2 嘅次方時首輪會自動輪空</span></div><div class="empty"><h3>人數唔夠</h3><p>而家得 ${totalIn} 位${gLabel}同學，要最少 2 位先開到賽。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;
@@ -862,7 +873,7 @@ function tourStartScreenHTML(g,banner){
 function renderTour(){
   const v=$("#view-tour");
   const g=tour?tour.gender:tourGender;
-  const gLabel=g==="female"?"女生":"男生";
+  const gLabel=genderCn(g);
   const nameOf=id=>{const e=state.entries.find(x=>x.id===id);return e?e.name:"（已刪除）"};
   const emptyScore={votes:0,overall:NaN,attraction:NaN,personality:NaN,social:NaN,richness:NaN};
   if(!tour){
@@ -891,7 +902,7 @@ function renderTour(){
   const totalIn=state.entries.filter(e=>(e.gender||"male")===g).length;
   if(tour.champion){
     const c=state.entries.find(x=>x.id===tour.champion);
-    const other=g==="female"?"male":"female";
+    const others=g==="male"?["female","teacher"]:g==="female"?["male","teacher"]:["male","female"];
     const rows=(tour.results||[]).map((r,i)=>{
       const na=nameOf(r.a),nb=nameOf(r.b),wname=nameOf(r.w);
       const va=(r.votes||[]).filter(x=>x.w===r.a).length;
@@ -906,7 +917,7 @@ function renderTour(){
         ${c?`<img src="${esc(photoSrc(c))}" alt="" onerror="this.src='${PLACEHOLDER}'"><h2>${esc(c.name)}</h2><p>${gLabel}榜最終冠軍！</p>`:`<h2>冇人贏</h2><p>啲同學被刪走晒，賽事腰斬。</p>`}
         <div class="btns">
           <button class="btn btn-primary" onclick="tourStart('${g}')">重新開始（新雲端賽）</button>
-          <a class="btn btn-ghost" href="#/tour/${other}">玩埋${other==="female"?"女生":"男生"}淘汰賽</a>
+          ${others.map(o=>`<a class="btn btn-ghost" href="#/tour/${o}">玩埋${genderCn(o)}淘汰賽</a>`).join("")}
           <a class="btn btn-ghost" href="#/${g}">睇返${gLabel}榜</a>
         </div>
       </div>
@@ -968,7 +979,7 @@ function mergeEntries(list){
     if(!en||!en.name)return;
     const id=en.id||uid();
     let local=state.entries.find(x=>x.id===id);
-    if(!local){local={id,name:String(en.name),gender:(en.gender==="female"?"female":"male"),photo:en.photo||"",tags:Array.isArray(en.tags)?en.tags.map(String):[],desc:en.desc||"",createdBy:en.createdBy||"",createdAt:en.createdAt||Date.now(),votes:[]};}
+    if(!local){local={id,name:String(en.name),gender:(en.gender==="teacher"?"teacher":(en.gender==="female"?"female":"male")),photo:en.photo||"",tags:Array.isArray(en.tags)?en.tags.map(String):[],desc:en.desc||"",createdBy:en.createdBy||"",createdAt:en.createdAt||Date.now(),votes:[]};}
     const votes=Array.isArray(local.votes)?local.votes.slice():[];
     (Array.isArray(en.votes)?en.votes:[]).forEach(v=>{
       if(!v||!v.voter||!v.attraction)return;
@@ -976,14 +987,16 @@ function mergeEntries(list){
       if(i>=0){if((v.at||0)>=(votes[i].at||0))votes[i]=v;}
       else votes.push(v);
     });
-    out.push({...local,votes,gender:(en.gender==="female"?"female":"male")});
+    out.push({...local,votes,gender:(en.gender==="teacher"?"teacher":(en.gender==="female"?"female":"male"))});
   });
   return out;
 }
 
 /* ============ render: leaderboard ============ */
 let sortKey="overall",onlyMine=false,board="male";
-function boardLabel(){return board==="female"?"女生榜":"男生榜"}
+function genderCn(g){return g==="female"?"女生":g==="teacher"?"老師":"男生";}
+function boardCn(g){return g==="female"?"女生榜":g==="teacher"?"老師榜":"男生榜";}
+function boardLabel(){return boardCn(board)}
 function rankedList(){
   let list=state.entries.filter(e=>(e.gender||"male")===board);
   const kw=($("#searchBox").value||"").trim().toLowerCase();
@@ -1004,8 +1017,8 @@ function renderRank(){
   const rated=list.filter(e=>scores(e).votes>0);
   const podiumEl=$("#podium"),listEl=$("#rankList");
   $("#boardTitle").textContent=boardLabel();
-  $("#boardCount").textContent=list.length?`${list.length} 位同學 · ${board==="male"?"男":"女"}`:"";
-  $("#boardTitle").style.color=board==="female"?"var(--c-face)":"var(--accent2)";
+  $("#boardCount").textContent=list.length?`${list.length} 位同學 · ${genderCn(board)}`:"";
+  $("#boardTitle").style.color=board==="female"?"var(--c-face)":board==="teacher"?"var(--gold)":"var(--accent2)";
   $("#tourLink").href="#/tour/"+board;
   /* podium: overall top3 */
   if(rated.length>=3){
@@ -1025,7 +1038,7 @@ function renderRank(){
     listEl.innerHTML=`<div class="empty">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 4H4v2a3 3 0 0 0 3 3M17 4h3v2a3 3 0 0 1-3 3"/></svg>
       <h3>${kw? "找不到符合的同學":"呢個榜仲係空嘅"}</h3>
-      <p>${kw? "試試其他關鍵字。":`按右上角「新增同學」加入第一位${board==="female"?"女":"男"}同學，邀請朋友一起評分，即時看排名。`}</p>
+      <p>${kw? "試試其他關鍵字。":`按右上角「新增同學」加入第一位${genderCn(board)}同學，邀請朋友一起評分，即時看排名。`}</p>
       ${kw?"":"<button class='btn btn-primary' onclick=\"openForm(null,'"+board+"')\">＋ 新增第一位同學</button>"}
     </div>`;
     return;
@@ -1057,7 +1070,7 @@ function renderDetail(id){
     <div class="detail-hero">
       <img class="ph" src="${esc(photoSrc(e))}" alt="" onerror="this.src='${PLACEHOLDER}'">
       <div class="meta">
-        <h1>${esc(e.name)} <span class="pill" style="font-size:13px;color:${e.gender==="female"?"var(--c-face)":"var(--accent2)"}">${e.gender==="female"?"女生":"男生"}</span> ${sc.votes?`<span class="pill" style="font-size:13px">綜合 ${fmt(sc.overall)}</span>`:""}</h1>
+        <h1>${esc(e.name)} <span class="pill" style="font-size:13px;color:${e.gender==="female"?"var(--c-face)":e.gender==="teacher"?"var(--gold)":"var(--accent2)"}">${genderCn(e.gender)}</span> ${sc.votes?`<span class="pill" style="font-size:13px">綜合 ${fmt(sc.overall)}</span>`:""}</h1>
         ${e.tags&&e.tags.length?`<div class="tags">${e.tags.map(t=>`<span>${esc(t)}</span>`).join("")}</div>`:""}
         ${e.desc?`<p class="desc">${esc(e.desc)}</p>`:""}
         <div class="dim-bars">${DIMS.map(d=>{const val=sc[d.key];return `<div class="dim-row"><div class="dl" style="color:${DIMC[d.key]}">${d.label}</div><div class="track"><div class="fill" style="width:${Number.isFinite(val)?val*10:0}%;background:${DIMC[d.key]}"></div></div><div class="dv" style="color:${DIMC[d.key]}">${fmt(val)}</div></div>`}).join("")}</div>
@@ -1106,7 +1119,8 @@ function renderData(){
   const total=state.entries.reduce((n,e)=>n+e.votes.length,0);
   const m=state.entries.filter(e=>(e.gender||"male")==="male").length;
   const f=state.entries.filter(e=>e.gender==="female").length;
-  $("#statBox").innerHTML=`<span class="pill">連線 <b>${fbReady?"雲端":"本機"}</b></span><span class="pill">同學 <b>${state.entries.length}</b></span><span class="pill">男 <b>${m}</b> 女 <b>${f}</b></span><span class="pill">已評 <b>${rated.length}</b></span><span class="pill">總票數 <b>${total}</b></span>`;
+  const t=state.entries.filter(e=>e.gender==="teacher").length;
+  $("#statBox").innerHTML=`<span class="pill">連線 <b>${fbReady?"雲端":"本機"}</b></span><span class="pill">同學 <b>${state.entries.length}</b></span><span class="pill">男 <b>${m}</b> 女 <b>${f}</b> 老師 <b>${t}</b></span><span class="pill">已評 <b>${rated.length}</b></span><span class="pill">總票數 <b>${total}</b></span>`;
   $("#statBox2").innerHTML=`<span class="pill">本機快取 <b>${state.entries.length}</b> 位同學</span><span class="pill">暱稱 <b>${esc(state.nick||"未設定")}</b></span>`;
 }
 
@@ -1117,9 +1131,9 @@ function router(){
   if(!h.startsWith("#/tour/")&&tourUnsub){tourUnsub();tourUnsub=null;}
   $$("main").forEach(x=>x.classList.add("hidden"));
   $$(".nav button").forEach(b=>b.classList.remove("active"));
-  if(m){const id=decodeURIComponent(m[1]);const ent=state.entries.find(x=>x.id===id);const g=(ent&&ent.gender==="female")?"female":"male";$("#view-detail").classList.remove("hidden");$(`.nav button[data-nav=${g}]`).classList.add("active");renderDetail(id);}
+  if(m){const id=decodeURIComponent(m[1]);const ent=state.entries.find(x=>x.id===id);const g=ent&&ent.gender?ent.gender:"male";$("#view-detail").classList.remove("hidden");$(`.nav button[data-nav=${g}]`).classList.add("active");renderDetail(id);}
   else if(h.startsWith("#/data")){$("#view-data").classList.remove("hidden");$(".nav button[data-nav=data]").classList.add("active");renderData();}
-  else if(h==="#/male"||h==="#/female"){board=h.slice(2);$("#view-rank").classList.remove("hidden");$(`.nav button[data-nav=${board}]`).classList.add("active");renderRank();}
+  else if(h==="#/male"||h==="#/female"||h==="#/teacher"){board=h.slice(2);$("#view-rank").classList.remove("hidden");$(`.nav button[data-nav=${board}]`).classList.add("active");renderRank();}
   else if(h.startsWith("#/tour/")){tourGender=h.slice(7);$("#view-tour").classList.remove("hidden");$(`.nav button[data-nav=${tourGender}]`).classList.add("active");loadTour(tourGender);}
   else{$("#view-home").classList.remove("hidden");}
   window.scrollTo(0,0);
@@ -1134,7 +1148,7 @@ function syncSeg(){
 function openForm(id,g){
   editId=id||null;pendingPhoto="";
   const e=id?state.entries.find(x=>x.id===id):null;
-  formGender=e?((e.gender==="female")?"female":"male"):(g||"male");
+  formGender=e?(e.gender||"male"):(g||"male");
   syncSeg();
   $("#formTitle").textContent=e?"編輯同學":"新增同學";
   $("#fName").value=e?e.name:"";
@@ -1264,7 +1278,7 @@ $("#btnSaveNick").onclick=()=>{state.nick=$("#nick").value.trim().slice(0,20);sa
 $("#btnReset").onclick=async()=>{if(!(await askConfirm("確定清空呢台裝置上嘅本機快取？（雲端資料唔會受影響）")))return;localStorage.removeItem(LS_KEY);load();toast("本機快取已清空","ok");router();renderData();};
 
 /* ============ misc events ============ */
-$$(".nav button").forEach(b=>b.onclick=()=>{const n=b.dataset.nav;location.hash=n==="male"?"#/male":n==="female"?"#/female":"#/data";});
+$$(".nav button").forEach(b=>b.onclick=()=>{location.hash="#/"+b.dataset.nav;});
 $("#btnAdd").onclick=()=>openForm(null,board);
 $$("#segGender button").forEach(b=>b.onclick=()=>{formGender=b.dataset.g;syncSeg();});
 $$("[data-close]").forEach(b=>b.onclick=()=>closeModal(b.dataset.close));
