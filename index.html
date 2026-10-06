@@ -562,9 +562,8 @@ function myVote(e){return e.votes.find(v=>v.voter===state.voterId)||null}
 
 /* ============ firebase realtime sync ============ */
 function toFireEntry(e){
-  const votes={};
-  (Array.isArray(e.votes)?e.votes:[]).forEach(v=>{if(v&&v.voter)votes[v.voter]=v;});
-  return {id:e.id,name:e.name,gender:(e.gender==="female"?"female":"male"),photo:e.photo||"",tags:Array.isArray(e.tags)?e.tags:[],desc:e.desc||"",createdBy:e.createdBy||"",createdAt:e.createdAt||Date.now(),votes};
+  // 刻意唔寫 votes：votes 只經 fbPatch 逐人合併，避免編輯（例如換相）用 set+merge 覆蓋成個 votes map 而清晒評分
+  return {id:e.id,name:e.name,gender:(e.gender==="female"?"female":"male"),photo:e.photo||"",tags:Array.isArray(e.tags)?e.tags:[],desc:e.desc||"",createdBy:e.createdBy||"",createdAt:e.createdAt||Date.now()};
 }
 function fromFireEntry(d){
   const data=d.data()||{};
@@ -574,7 +573,22 @@ function fromFireEntry(d){
 }
 function cacheEntries(){try{localStorage.setItem(LS_KEY,JSON.stringify(state))}catch(e){}}
 async function fbWrite(e){if(fbReady)await db.collection("entries").doc(e.id).set(toFireEntry(e),{merge:true});}
-async function fbPatch(id,patch){if(fbReady)await db.collection("entries").doc(id).set(patch,{merge:true});}
+async function fbPatch(id,patch){
+  if(!fbReady)return;
+  // 將巢狀 map patch 攤平成 dotted path（如 votes.<voter>），用 update() 只合併個別 key，
+  // 唔會好似 set+merge 咁用成個 map 覆蓋，避免每次投票/編輯沖走其他人嘅評分
+  const flat={};
+  for(const k in patch){
+    const v=patch[k];
+    if(v&&typeof v==="object"&&!Array.isArray(v)){for(const kk in v)flat[k+"."+kk]=v[kk];}
+    else flat[k]=v;
+  }
+  try{await db.collection("entries").doc(id).update(flat);}
+  catch(err){
+    if(err&&err.code==="not-found"){await db.collection("entries").doc(id).set(patch,{merge:true});}
+    else throw err;
+  }
+}
 async function fbDelete(id){if(fbReady)await db.collection("entries").doc(id).delete();}
 async function seedAll(entries){
   const col=db.collection("entries");
