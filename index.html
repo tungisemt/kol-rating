@@ -373,7 +373,7 @@ footer.site b{color:var(--dim)}
 </main>
 
 <main class="container hidden" id="view-rank">
-  <div class="board-head"><h2 id="boardTitle">男生榜</h2><span id="boardCount"></span><a class="btn btn-ghost btn-sm" id="tourLink" href="#/tour/male">淘汰賽</a></div>
+  <div class="board-head"><h2 id="boardTitle">男生榜</h2><span id="boardCount"></span><a class="btn btn-ghost btn-sm" id="tourLink" href="#/tour/male">殘酷二選一</a></div>
   <div class="sortbar">
     <button class="chip active" data-sort="overall">綜合</button>
     <button class="chip" data-sort="attraction">顏值</button>
@@ -629,7 +629,7 @@ function askConfirm(text){
 }
 async function ensureRoom(){
   if(roomAuthed())return true;
-  const k=await askInput("輸入房間金鑰","要投票／新增／刪除／開淘汰賽，先輸入房間金鑰（喺 Discord 訊息度有）","房間金鑰");
+  const k=await askInput("輸入房間金鑰","要投票／新增／刪除／開殘酷二選一，先輸入房間金鑰（喺 Discord 訊息度有）","房間金鑰");
   if(k===ROOM_KEY){localStorage.setItem("roomKey",ROOM_KEY);return true;}
   if(k)toast("金鑰唔啱","err");
   return false;
@@ -669,15 +669,15 @@ function renderCurrent(){
   else if(h.startsWith("#/tour/")){tourGender=h.slice(7);if(!tour||tour.gender!==tourGender||(tour.range||"all")!==tourRange){loadTour(tourGender,tourRange);}else{renderTour();}}
 }
 
-/* ============ tournament (雲端即時同步 2 揀 1 淘汰賽) ============ */
-const TOUR_KEY="kolRating.tour.";            // 舊版本機淘汰賽（只作一次性匯入來源）
+/* ============ tournament (雲端即時同步 2 揀 1 殘酷二選一) ============ */
+const TOUR_KEY="kolRating.tour.";            // 舊版本機殘酷二選一（只作一次性匯入來源）
 const TOUR_COL="tournaments";                // 雲端 collection（每個榜一個 doc：male / female / teacher）
 const TOUR_CLOSE_VOTES=3;                    // 一個對局滿 3 票自動鎖定（多數者贏）
 let tour=null,tourGender="male",tourRange="all",tourUnsub=null;
 
 function rangeLabel(r){return r==="all"?"全部":r==="high"?"高中(4-6)":r==="low"?"初中(1-3)":r+"年級";}
 function tourDocId(g,r){r=r||"all";return g+"_"+r;}
-/* 淘汰賽範圍內嘅參賽者：全部 / 高中(4-6) / 初中(1-3) / 指定年級 */
+/* 殘酷二選一範圍內嘅參賽者：全部 / 高中(4-6) / 初中(1-3) / 指定年級 */
 function tourEntries(g,r){
   r=r||"all";
   let list=state.entries.filter(e=>(e.gender||"male")===g);
@@ -778,14 +778,14 @@ async function tourStart(g,r){
   if(snap&&snap.exists){
     const cur=tourFromFire(snap);
     if(cur.results&&cur.results.length){
-      if(!(await askConfirm("雲端已經有場淘汰賽（有人玩緊／已完賽）。重新開始會清走所有人嘅賽果同投票，確定？")))return;
+      if(!(await askConfirm("雲端已經有場殘酷二選一（有人玩緊／已完賽）。重新開始會清走所有人嘅賽果同投票，確定？")))return;
     }
   }
   const br=buildBracket(shuffle(ids));
   const t={v:3,gender:g,range:r,pool:br.pool,nextPool:br.nextPool,matchNo:0,champion:null,results:[],currentVotes:[],byes:br.byes,startedAt:Date.now()};
   advanceTour(t);
   try{await ref.set(tourToFire(t));}catch(e){console.error("[tour] start fail",e);toast("開賽寫入雲端失敗，稍後再試","err");return;}
-  tour=t;tour._doc=tourDocId(g,r);toast("新淘汰賽已開始，即時同步俾所有人","ok");
+  tour=t;tour._doc=tourDocId(g,r);toast("新殘酷二選一已開始，即時同步俾所有人","ok");
 }
 function loadTour(g,r){
   r=r||tourRange||"all";
@@ -804,7 +804,7 @@ function loadTour(g,r){
     }else{tour=null;renderTour();}
   },err=>{
     console.error("[tour] sync fail",err);
-    toast("淘汰賽雲端同步失敗，改用本機","err");
+    toast("殘酷二選一雲端同步失敗，改用本機","err");
     tourUnsub=null;
     loadTourLocal(g,r);
   });
@@ -815,11 +815,15 @@ async function tourPick(id){
   if(!(await ensureRoom()))return;
   if(!fbReady){
     tour.currentVotes=addVote(tour.currentVotes,state.voterId,id,Date.now());
-    const [a,b]=tour.current;
-    const w=majorityPick(a,b,tour.currentVotes);
-    tour.results.push({a,b,w,votes:tour.currentVotes,at:Date.now()});
-    tour.matchNo++;tour.nextPool.push(w);tour.currentVotes=[];
-    advanceTour(tour);tourSave();renderTour();return;
+    // 本機模式同雲端一致：滿 3 票先自動鎖定（多數者贏）；1-2 票只係記錄，唔會即刻決定
+    if(tour.currentVotes.length>=TOUR_CLOSE_VOTES){
+      const [a,b]=tour.current;
+      const w=majorityPick(a,b,tour.currentVotes);
+      tour.results.push({a,b,w,votes:tour.currentVotes,at:Date.now()});
+      tour.matchNo++;tour.nextPool.push(w);tour.currentVotes=[];
+      advanceTour(tour);
+    }
+    tourSave();renderTour();return;
   }
   const ref=db.collection(TOUR_COL).doc(tour._doc||tourDocId(tour.gender,tour.range||"all"));
   let out="";
@@ -886,7 +890,7 @@ async function tourImportLocal(g,r){
   if(!localT){toast("冇舊版本機記錄可以匯入","err");return;}
   if(!(await ensureRoom()))return;
   db.collection(TOUR_COL).doc(tourDocId(g,r)).set(tourToFire(localT)).then(()=>{
-    toast("舊版淘汰賽已匯入雲端","ok");
+    toast("舊版殘酷二選一已匯入雲端","ok");
   }).catch(err=>{console.error("[tour] import fail",err);toast("匯入失敗，稍後再試","err");});
 }
 function tourDiscardLocal(g,r){
@@ -901,16 +905,16 @@ function tourStartScreenHTML(g,banner){
   const r=tourRange||"all";
   const totalIn=tourEntries(g,r).length;
   if(totalIn<2){
-    return `<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍 · 雲端即時同步 · 人數唔係 2 嘅次方時首輪會自動輪空</span></div>${tourRangeChips(g,r)}<div class="empty"><h3>人數唔夠</h3><p>「${rangeLabel(r)}」而家得 ${totalIn} 位${gLabel}同學，要最少 2 位先開到賽。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;
+    return `<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}殘酷二選一</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍 · 雲端即時同步 · 人數唔係 2 嘅次方時首輪會自動輪空</span></div>${tourRangeChips(g,r)}<div class="empty"><h3>人數唔夠</h3><p>「${rangeLabel(r)}」而家得 ${totalIn} 位${gLabel}同學，要最少 2 位先開到賽。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;
   }
   return `<div class="tour-wrap">
-    <div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍 · 雲端即時同步</span></div>
+    <div class="tour-head"><h2>${gLabel}殘酷二選一</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍 · 雲端即時同步</span></div>
     ${tourRangeChips(g,r)}
     ${banner||""}
     <div class="empty">
-      <h3>未有雲端淘汰賽</h3>
+      <h3>未有雲端殘酷二選一</h3>
       <p>「${rangeLabel(r)}」而家有 ${totalIn} 位${gLabel}同學可以玩。開賽之後，每場對決大家都會即時見到同一份賽果。</p>
-      <button class="btn btn-primary" onclick="tourStart('${g}','${r}')">開始淘汰賽</button>
+      <button class="btn btn-primary" onclick="tourStart('${g}','${r}')">開始殘酷二選一</button>
       <div class="tour-hint" style="margin-top:12px">㩒卡片投你一票（每人一票，可以改）· 滿 ${TOUR_CLOSE_VOTES} 票自動晉級（多數者贏）· 投完亦可以㩒「鎖定賽果」即刻晉級。人數唔係 2 嘅次方時，首輪會有人輪空自動晉級，之後每輪人人都要對賽。</div>
     </div>
   </div>`;
@@ -927,20 +931,22 @@ function renderTour(){
       const localT=tourLoad(g);
       const dismissed=sessionStorage.getItem("tour.import.dismiss."+g)==="1";
       if(localT&&!dismissed&&!fbFailed){
-        banner=`<div class="tour-banner"><p>你手機仲有舊版<b>本機</b>淘汰賽記錄（${(localT.results||[]).length} 場賽果）。而家淘汰賽已經改為雲端即時同步，要唔要匯入做大家嘅雲端賽？</p><div style="display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="tourImportLocal('${g}')">匯入做雲端賽</button><button class="btn btn-ghost btn-sm" onclick="tourDiscardLocal('${g}')">唔要，開新賽</button></div></div>`;
+        banner=`<div class="tour-banner"><p>你手機仲有舊版<b>本機</b>殘酷二選一記錄（${(localT.results||[]).length} 場賽果）。而家殘酷二選一已經改為雲端即時同步，要唔要匯入做大家嘅雲端賽？</p><div style="display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="tourImportLocal('${g}')">匯入做雲端賽</button><button class="btn btn-ghost btn-sm" onclick="tourDiscardLocal('${g}')">唔要，開新賽</button></div></div>`;
       }
     }catch(e){}
     v.innerHTML=tourStartScreenHTML(g,banner);
     return;
   }
   if(!fbReady){
+    // 本機模式：只會跳過「兩邊都唔見」嘅對局（w:null 唔算決定贏家）；
+    // 有一邊唔見都唔會自動晉級——唔可以冇投票就決定贏家
     let guard=0;
     while(tour.current&&guard++<100){
       const ea=state.entries.find(x=>x.id===tour.current[0]);
       const eb=state.entries.find(x=>x.id===tour.current[1]);
-      if(ea&&eb)break;
-      if(!ea&&!eb){tour.results.push({a:tour.current[0],b:tour.current[1],w:null,at:Date.now(),votes:[]});tour.matchNo++;tour.current=null;}
-      else{const id=ea?tour.current[0]:tour.current[1];tour.results.push({a:tour.current[0],b:tour.current[1],w:id,at:Date.now(),votes:[]});tour.matchNo++;tour.nextPool.push(id);tour.currentVotes=[];}
+      if(ea||eb)break;
+      tour.results.push({a:tour.current[0],b:tour.current[1],w:null,at:Date.now(),votes:[]});
+      tour.matchNo++;tour.current=null;
       advanceTour(tour);
     }
   }
@@ -956,14 +962,14 @@ function renderTour(){
       return `<div class="tr-row"><span class="tr-no">#${i+1}</span><span class="tr-txt">${esc(na)} vs ${esc(nb)} → <b>${esc(wname)}</b></span><span class="tr-votes">${votesTxt}</span></div>`;
     }).join("");
     v.innerHTML=`<div class="tour-wrap">
-      <div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">${rangeLabel(tour.range||"all")} · 已完成 · 雲端即時同步</span></div>
+      <div class="tour-head"><h2>${gLabel}殘酷二選一</h2><span class="sub">${rangeLabel(tour.range||"all")} · 已完成 · 雲端即時同步</span></div>
       ${tourRangeChips(g,tour.range||"all")}
       <div class="tour-done">
         <svg class="crown" viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="#F7B500" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M6 10l-1.5 3L8 12l4 4 4-4 3.5 1L18 10l-3-2-3 3-3-3z"/></svg>
         ${c?`<img src="${esc(photoSrc(c))}" alt="" onerror="this.src='${PLACEHOLDER}'"><h2>${esc(c.name)}</h2><p>${gLabel}榜最終冠軍！</p>`:`<h2>冇人贏</h2><p>啲同學被刪走晒，賽事腰斬。</p>`}
         <div class="btns">
           <button class="btn btn-primary" onclick="tourStart('${g}','${tour.range||"all"}')">重新開始（新雲端賽）</button>
-          ${others.map(o=>`<a class="btn btn-ghost" href="#/tour/${o}">玩埋${genderCn(o)}淘汰賽</a>`).join("")}
+          ${others.map(o=>`<a class="btn btn-ghost" href="#/tour/${o}">玩埋${genderCn(o)}殘酷二選一</a>`).join("")}
           <a class="btn btn-ghost" href="#/${g}">睇返${gLabel}榜</a>
         </div>
       </div>
@@ -990,7 +996,7 @@ function renderTour(){
   const voted=(tour.currentVotes||[]).length;
   const byeNote=(tour.byes>0&&tour.matchNo===0)?`<div class="tour-hint" style="margin-top:8px">首輪有 ${tour.byes} 位同學輪空（人數唔係 2 嘅次方，自動晉級）；之後每輪人人都要對賽，唔會有人一場未打就入決賽</div>`:"";
   v.innerHTML=`<div class="tour-wrap">
-    <div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">${rangeLabel(tour.range||"all")} · 邊個贏？㩒佢投你一票 · 即時同步</span></div>
+    <div class="tour-head"><h2>${gLabel}殘酷二選一</h2><span class="sub">${rangeLabel(tour.range||"all")} · 邊個贏？㩒佢投你一票 · 即時同步</span></div>
     ${tourRangeChips(g,tour.range||"all")}
     <div class="tour-progress"><span>第 ${tour.matchNo+1} 場</span><div class="tour-bar"><i style="width:${pct}%"></i></div><span>${tour.pool.length+tour.nextPool.length+2} 人剩</span></div>
     ${byeNote}
