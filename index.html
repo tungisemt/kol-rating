@@ -666,17 +666,42 @@ function renderCurrent(){
   if(m)renderDetail(decodeURIComponent(m[1]));
   else if(h.startsWith("#/data"))renderData();
   else if(h==="#/male"||h==="#/female"||h==="#/teacher")renderRank();
-  else if(h.startsWith("#/tour/")){tourGender=h.slice(7);if(!tour||tour.gender!==tourGender){loadTour(tourGender);}else{renderTour();}}
+  else if(h.startsWith("#/tour/")){tourGender=h.slice(7);if(!tour||tour.gender!==tourGender||(tour.range||"all")!==tourRange){loadTour(tourGender,tourRange);}else{renderTour();}}
 }
 
 /* ============ tournament (雲端即時同步 2 揀 1 淘汰賽) ============ */
 const TOUR_KEY="kolRating.tour.";            // 舊版本機淘汰賽（只作一次性匯入來源）
 const TOUR_COL="tournaments";                // 雲端 collection（每個榜一個 doc：male / female / teacher）
 const TOUR_CLOSE_VOTES=3;                    // 一個對局滿 3 票自動鎖定（多數者贏）
-let tour=null,tourGender="male",tourUnsub=null;
+let tour=null,tourGender="male",tourRange="all",tourUnsub=null;
 
-function tourLoad(g){try{const t=JSON.parse(localStorage.getItem(TOUR_KEY+g));return (t&&(t.v===1||t.v===2)&&t.gender===g)?t:null;}catch(e){return null;}}
-function tourSave(){if(tour)try{localStorage.setItem(TOUR_KEY+tour.gender,JSON.stringify(tour))}catch(e){}}
+function rangeLabel(r){return r==="all"?"全部":r==="high"?"高中(4-6)":r==="low"?"初中(1-3)":r+"年級";}
+function tourDocId(g,r){r=r||"all";return g+"_"+r;}
+/* 淘汰賽範圍內嘅參賽者：全部 / 高中(4-6) / 初中(1-3) / 指定年級 */
+function tourEntries(g,r){
+  r=r||"all";
+  let list=state.entries.filter(e=>(e.gender||"male")===g);
+  if(r==="high")list=list.filter(e=>["4","5","6"].includes(gradeOf(e)));
+  else if(r==="low")list=list.filter(e=>["1","2","3"].includes(gradeOf(e)));
+  else if(r!=="all")list=list.filter(e=>gradeOf(e)===r);
+  return list;
+}
+function tourRangeChips(g,r){
+  const defs=[["all","全部"],["high","高中"],["low","初中"],["6","6年級"],["5","5年級"],["4","4年級"],["3","3年級"],["2","2年級"],["1","1年級"]];
+  return `<div class="sortbar gradebar">${defs.map(([k,l])=>`<button class="chip${r===k?" active":""}" onclick="setTourRange('${g}','${k}')">${l}</button>`).join("")}</div>`;
+}
+function setTourRange(g,r){tourRange=r;loadTour(g,r);}
+
+function tourLoad(g,r){
+  r=r||"all";
+  try{
+    const t=JSON.parse(localStorage.getItem(TOUR_KEY+g+"."+r));
+    if(t&&(t.v===1||t.v===2||t.v===3)&&t.gender===g)return t;
+  }catch(e){}
+  if(r==="all"){try{const t=JSON.parse(localStorage.getItem(TOUR_KEY+g));if(t&&(t.v===1||t.v===2)&&t.gender===g)return t;}catch(e){}}
+  return null;
+}
+function tourSave(){if(tour)try{localStorage.setItem(TOUR_KEY+tour.gender+"."+(tour.range||"all"),JSON.stringify(tour))}catch(e){}}
 function shuffle(a){const x=a.slice();for(let i=x.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[x[i],x[j]]=[x[j],x[i]];}return x;}
 function nextPow2(n){let p=1;while(p<n)p*=2;return p;}
 /* 標準單淘汰 bracket：輪空只會喺第一輪出現（人數唔係 2 嘅次方先有），
@@ -696,7 +721,7 @@ function advanceTour(t){
   }
 }
 function tourToFire(t){
-  return {v:2,gender:t.gender,pool:t.pool||[],nextPool:t.nextPool||[],
+  return {v:3,gender:t.gender,range:t.range||"all",pool:t.pool||[],nextPool:t.nextPool||[],
     current:t.current||null,champion:t.champion||null,matchNo:t.matchNo||0,byes:t.byes||0,
     currentVotes:(t.currentVotes||[]).map(x=>({v:x.v,w:x.w,at:x.at})),
     results:(t.results||[]).map(r=>({a:r.a,b:r.b,w:r.w||null,at:r.at||Date.now(),votes:(r.votes||[]).map(x=>({v:x.v,w:x.w,at:x.at}))})),
@@ -704,7 +729,7 @@ function tourToFire(t){
 }
 function tourFromFire(d){
   const x=d.data()||{};
-  return {v:2,gender:x.gender||"male",pool:x.pool||[],nextPool:x.nextPool||[],
+  return {v:3,gender:x.gender||"male",range:x.range||"all",pool:x.pool||[],nextPool:x.nextPool||[],
     current:x.current||null,champion:x.champion||null,matchNo:x.matchNo||0,byes:x.byes||0,
     currentVotes:(x.currentVotes||[]).map(v=>({v:v.v,w:v.w,at:v.at})),
     results:(x.results||[]).map(r=>({a:r.a,b:r.b,w:r.w||null,at:r.at||Date.now(),votes:(r.votes||[]).map(v=>({v:v.v,w:v.w,at:v.at}))})),
@@ -726,24 +751,28 @@ function majorityPick(a,b,votes){
   return (fa<=fb)?a:b;
 }
 function tourLockReady(t){return t&&t.current&&Array.isArray(t.currentVotes)&&t.currentVotes.length>0;}
-function loadTourLocal(g){
-  const t=tourLoad(g);
-  if(t){tour=t;}else{tourStartLocal(g);}
+function loadTourLocal(g,r){
+  r=r||tourRange||"all";
+  const t=tourLoad(g,r);
+  if(t){tour=t;}else{tourStartLocal(g,r);}
   renderTour();
 }
-function tourStartLocal(g){
-  const ids=[...new Set(state.entries.filter(e=>(e.gender||"male")===g).map(e=>e.id))];
+function tourStartLocal(g,r){
+  r=r||tourRange||"all";
+  const ids=[...new Set(tourEntries(g,r).map(e=>e.id))];
   const br=buildBracket(shuffle(ids));
-  tour={v:2,gender:g,pool:br.pool,nextPool:br.nextPool,matchNo:0,champion:null,results:[],currentVotes:[],byes:br.byes,startedAt:Date.now()};
+  tour={v:3,gender:g,range:r,pool:br.pool,nextPool:br.nextPool,matchNo:0,champion:null,results:[],currentVotes:[],byes:br.byes,startedAt:Date.now()};
+  tour._doc=null;
   if(ids.length>=2)advanceTour(tour);
   tourSave();renderTour();
 }
-async function tourStart(g){
+async function tourStart(g,r){
+  r=r||tourRange||"all";
   if(!(await ensureRoom()))return;
-  if(!fbReady){tourStartLocal(g);return;}
-  const ids=[...new Set(state.entries.filter(e=>(e.gender||"male")===g).map(e=>e.id))];
+  if(!fbReady){tourStartLocal(g,r);return;}
+  const ids=[...new Set(tourEntries(g,r).map(e=>e.id))];
   if(ids.length<2){toast("人數唔夠，開唔到賽","err");renderTour();return;}
-  const ref=db.collection(TOUR_COL).doc(g);
+  const ref=db.collection(TOUR_COL).doc(tourDocId(g,r));
   let snap=null;
   try{snap=await ref.get();}catch(e){snap=null;}
   if(snap&&snap.exists){
@@ -753,23 +782,31 @@ async function tourStart(g){
     }
   }
   const br=buildBracket(shuffle(ids));
-  const t={v:2,gender:g,pool:br.pool,nextPool:br.nextPool,matchNo:0,champion:null,results:[],currentVotes:[],byes:br.byes,startedAt:Date.now()};
+  const t={v:3,gender:g,range:r,pool:br.pool,nextPool:br.nextPool,matchNo:0,champion:null,results:[],currentVotes:[],byes:br.byes,startedAt:Date.now()};
   advanceTour(t);
   try{await ref.set(tourToFire(t));}catch(e){console.error("[tour] start fail",e);toast("開賽寫入雲端失敗，稍後再試","err");return;}
-  tour=t;toast("新淘汰賽已開始，即時同步俾所有人","ok");
+  tour=t;tour._doc=tourDocId(g,r);toast("新淘汰賽已開始，即時同步俾所有人","ok");
 }
-function loadTour(g){
-  tourGender=g;
+function loadTour(g,r){
+  r=r||tourRange||"all";
+  tourGender=g;tourRange=r;
   if(tourUnsub){tourUnsub();tourUnsub=null;}
-  if(!fbReady){loadTourLocal(g);return;}
-  tourUnsub=db.collection(TOUR_COL).doc(g).onSnapshot(snap=>{
-    if(snap.exists){tour=tourFromFire(snap);renderTour();}
-    else{tour=null;renderTour();}
+  if(!fbReady){loadTourLocal(g,r);return;}
+  const ref=db.collection(TOUR_COL).doc(tourDocId(g,r));
+  tourUnsub=ref.onSnapshot(snap=>{
+    if(snap.exists){tour=tourFromFire(snap);tour._doc=tourDocId(g,r);renderTour();return;}
+    if(r==="all"){  // 向後兼容：舊 doc（無 _all 後綴）
+      const old=db.collection(TOUR_COL).doc(g);
+      old.get().then(os=>{
+        if(os.exists){tour=tourFromFire(os);tour._doc=g;renderTour();}
+        else{tour=null;renderTour();}
+      }).catch(()=>{tour=null;renderTour();});
+    }else{tour=null;renderTour();}
   },err=>{
     console.error("[tour] sync fail",err);
     toast("淘汰賽雲端同步失敗，改用本機","err");
     tourUnsub=null;
-    loadTourLocal(g);
+    loadTourLocal(g,r);
   });
 }
 async function tourPick(id){
@@ -784,7 +821,7 @@ async function tourPick(id){
     tour.matchNo++;tour.nextPool.push(w);tour.currentVotes=[];
     advanceTour(tour);tourSave();renderTour();return;
   }
-  const ref=db.collection(TOUR_COL).doc(tour.gender);
+  const ref=db.collection(TOUR_COL).doc(tour._doc||tourDocId(tour.gender,tour.range||"all"));
   let out="";
   try{
     out=await db.runTransaction(async tx=>{
@@ -809,6 +846,7 @@ async function tourPick(id){
     });
   }catch(err){console.error("[tour] vote fail",err);toast("投票寫入失敗，稍後再試","err");return;}
   if(out==="LOCKED"||out==="STALE")toast("呢場已經鎖定／更新咗，睇最新對局","err");
+  else if(out==="NO_DOC")toast("雲端賽事唔見咗，重新開賽","err");
   renderTour();
 }
 async function tourLock(){
@@ -822,7 +860,7 @@ async function tourLock(){
     tour.matchNo++;tour.nextPool.push(w);tour.currentVotes=[];
     advanceTour(tour);tourSave();renderTour();return;
   }
-  const ref=db.collection(TOUR_COL).doc(tour.gender);
+  const ref=db.collection(TOUR_COL).doc(tour._doc||tourDocId(tour.gender,tour.range||"all"));
   try{
     await db.runTransaction(async tx=>{
       const snap=await tx.get(ref);
@@ -842,32 +880,37 @@ async function tourLock(){
   }catch(err){console.error("[tour] lock fail",err);toast("鎖定失敗，稍後再試","err");return;}
   renderTour();
 }
-async function tourImportLocal(g){
-  const localT=tourLoad(g);
+async function tourImportLocal(g,r){
+  r=r||tourRange||"all";
+  const localT=tourLoad(g,r);
   if(!localT){toast("冇舊版本機記錄可以匯入","err");return;}
   if(!(await ensureRoom()))return;
-  db.collection(TOUR_COL).doc(g).set(tourToFire(localT)).then(()=>{
+  db.collection(TOUR_COL).doc(tourDocId(g,r)).set(tourToFire(localT)).then(()=>{
     toast("舊版淘汰賽已匯入雲端","ok");
   }).catch(err=>{console.error("[tour] import fail",err);toast("匯入失敗，稍後再試","err");});
 }
-function tourDiscardLocal(g){
+function tourDiscardLocal(g,r){
+  r=r||tourRange||"all";
+  try{localStorage.removeItem(TOUR_KEY+g+"."+r);}catch(e){}
   try{localStorage.removeItem(TOUR_KEY+g);}catch(e){}
-  try{sessionStorage.setItem("tour.import.dismiss."+g,"1");}catch(e){}
+  try{sessionStorage.setItem("tour.import.dismiss."+g, "1");}catch(e){}
   tour=null;renderTour();
 }
 function tourStartScreenHTML(g,banner){
   const gLabel=genderCn(g);
-  const totalIn=state.entries.filter(e=>(e.gender||"male")===g).length;
+  const r=tourRange||"all";
+  const totalIn=tourEntries(g,r).length;
   if(totalIn<2){
-    return `<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍 · 雲端即時同步 · 人數唔係 2 嘅次方時首輪會自動輪空</span></div><div class="empty"><h3>人數唔夠</h3><p>而家得 ${totalIn} 位${gLabel}同學，要最少 2 位先開到賽。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;
+    return `<div class="tour-wrap"><div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍 · 雲端即時同步 · 人數唔係 2 嘅次方時首輪會自動輪空</span></div>${tourRangeChips(g,r)}<div class="empty"><h3>人數唔夠</h3><p>「${rangeLabel(r)}」而家得 ${totalIn} 位${gLabel}同學，要最少 2 位先開到賽。</p><a class="btn btn-primary" href="#/${g}">去${gLabel}榜</a></div></div>`;
   }
   return `<div class="tour-wrap">
     <div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">2 揀 1，一路淘汰到揀出最終冠軍 · 雲端即時同步</span></div>
+    ${tourRangeChips(g,r)}
     ${banner||""}
     <div class="empty">
       <h3>未有雲端淘汰賽</h3>
-      <p>而家有 ${totalIn} 位${gLabel}同學可以玩。開賽之後，每場對決大家都會即時見到同一份賽果。</p>
-      <button class="btn btn-primary" onclick="tourStart('${g}')">開始淘汰賽</button>
+      <p>「${rangeLabel(r)}」而家有 ${totalIn} 位${gLabel}同學可以玩。開賽之後，每場對決大家都會即時見到同一份賽果。</p>
+      <button class="btn btn-primary" onclick="tourStart('${g}','${r}')">開始淘汰賽</button>
       <div class="tour-hint" style="margin-top:12px">㩒卡片投你一票（每人一票，可以改）· 滿 ${TOUR_CLOSE_VOTES} 票自動晉級（多數者贏）· 投完亦可以㩒「鎖定賽果」即刻晉級。人數唔係 2 嘅次方時，首輪會有人輪空自動晉級，之後每輪人人都要對賽。</div>
     </div>
   </div>`;
@@ -901,7 +944,7 @@ function renderTour(){
       advanceTour(tour);
     }
   }
-  const totalIn=state.entries.filter(e=>(e.gender||"male")===g).length;
+  const totalIn=tourEntries(g,tour.range||tourRange||"all").length;
   if(tour.champion){
     const c=state.entries.find(x=>x.id===tour.champion);
     const others=g==="male"?["female","teacher"]:g==="female"?["male","teacher"]:["male","female"];
@@ -913,12 +956,13 @@ function renderTour(){
       return `<div class="tr-row"><span class="tr-no">#${i+1}</span><span class="tr-txt">${esc(na)} vs ${esc(nb)} → <b>${esc(wname)}</b></span><span class="tr-votes">${votesTxt}</span></div>`;
     }).join("");
     v.innerHTML=`<div class="tour-wrap">
-      <div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">已完成 · 雲端即時同步</span></div>
+      <div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">${rangeLabel(tour.range||"all")} · 已完成 · 雲端即時同步</span></div>
+      ${tourRangeChips(g,tour.range||"all")}
       <div class="tour-done">
         <svg class="crown" viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="#F7B500" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h14M6 10l-1.5 3L8 12l4 4 4-4 3.5 1L18 10l-3-2-3 3-3-3z"/></svg>
         ${c?`<img src="${esc(photoSrc(c))}" alt="" onerror="this.src='${PLACEHOLDER}'"><h2>${esc(c.name)}</h2><p>${gLabel}榜最終冠軍！</p>`:`<h2>冇人贏</h2><p>啲同學被刪走晒，賽事腰斬。</p>`}
         <div class="btns">
-          <button class="btn btn-primary" onclick="tourStart('${g}')">重新開始（新雲端賽）</button>
+          <button class="btn btn-primary" onclick="tourStart('${g}','${tour.range||"all"}')">重新開始（新雲端賽）</button>
           ${others.map(o=>`<a class="btn btn-ghost" href="#/tour/${o}">玩埋${genderCn(o)}淘汰賽</a>`).join("")}
           <a class="btn btn-ghost" href="#/${g}">睇返${gLabel}榜</a>
         </div>
@@ -946,7 +990,8 @@ function renderTour(){
   const voted=(tour.currentVotes||[]).length;
   const byeNote=(tour.byes>0&&tour.matchNo===0)?`<div class="tour-hint" style="margin-top:8px">首輪有 ${tour.byes} 位同學輪空（人數唔係 2 嘅次方，自動晉級）；之後每輪人人都要對賽，唔會有人一場未打就入決賽</div>`:"";
   v.innerHTML=`<div class="tour-wrap">
-    <div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">邊個贏？㩒佢投你一票 · 即時同步</span></div>
+    <div class="tour-head"><h2>${gLabel}淘汰賽</h2><span class="sub">${rangeLabel(tour.range||"all")} · 邊個贏？㩒佢投你一票 · 即時同步</span></div>
+    ${tourRangeChips(g,tour.range||"all")}
     <div class="tour-progress"><span>第 ${tour.matchNo+1} 場</span><div class="tour-bar"><i style="width:${pct}%"></i></div><span>${tour.pool.length+tour.nextPool.length+2} 人剩</span></div>
     ${byeNote}
     <div class="tour-match">
@@ -969,7 +1014,7 @@ function renderTour(){
     <div class="tour-hint">㩒卡片投你一票（每人一票，可以改）· 滿 ${TOUR_CLOSE_VOTES} 票自動晉級（多數者贏）· 賽果即時同步俾所有人</div>
     <div style="text-align:center;margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
       <button class="btn btn-primary btn-sm" onclick="tourLock()" ${voted?"":"disabled"}>鎖定賽果（${voted} 票 · 多數者贏）</button>
-      <button class="btn btn-ghost btn-sm" onclick="tourStart('${g}')">重新開始</button>
+      <button class="btn btn-ghost btn-sm" onclick="tourStart('${g}','${tour.range||"all"}')">重新開始</button>
     </div>
   </div>`;
 }
