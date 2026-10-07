@@ -460,6 +460,10 @@ footer.site b{color:var(--dim)}
       <input type="text" id="fName" placeholder="同學名稱" maxlength="30">
     </div>
     <div class="field">
+      <label>班別＋班號（如 6C-5）</label>
+      <input type="text" id="fClass" placeholder="例如：6C-5（可留空）" maxlength="12">
+    </div>
+    <div class="field">
       <label>性別（入嗰個榜）</label>
       <div class="seg" id="segGender">
         <button type="button" data-g="male">男</button>
@@ -1179,6 +1183,8 @@ window.addEventListener("hashchange",router);
 
 /* ============ form (add / edit) ============ */
 let editId=null,pendingPhoto="",formGender="male";
+/* 班別 tag 格式：如 6C-5 / 5E-6 / 1C-26 */
+const isClassTag=t=>/^\d{1,2}[A-Z]{1,3}-\d{1,2}$/.test((t||"").trim());
 function syncSeg(){
   $$("#segGender button").forEach(b=>b.classList.toggle("on",b.dataset.g===formGender));
 }
@@ -1189,7 +1195,8 @@ function openForm(id,g){
   syncSeg();
   $("#formTitle").textContent=e?"編輯同學":"新增同學";
   $("#fName").value=e?e.name:"";
-  $("#fTags").value=e?(e.tags||[]).join(", "):"";
+  $("#fClass").value=e?(e.tags||[]).find(isClassTag)||"":"";
+  $("#fTags").value=e?(e.tags||[]).filter(t=>!isClassTag(t)).join(", "):"";
   $("#fDesc").value=e?e.desc:"";
   pendingPhoto=e?e.photo:"";
   syncPhotoUI();
@@ -1205,7 +1212,14 @@ async function saveForm(){
   if(!(await ensureRoom()))return;
   const name=$("#fName").value.trim();
   if(!name){toast("請填名稱","err");return;}
-  const tags=$("#fTags").value.split(/[,，]/).map(s=>s.trim()).filter(Boolean).slice(0,6);
+  // 班別＋班號：正規化成「6C-5」格式；留空就移除舊班別 tag
+  const clsRaw=$("#fClass").value.trim();
+  let clsTag="";
+  const cm=clsRaw.match(/^(\d{1,2})\s*([A-Za-z]{1,3})\s*[-－ ]?\s*(\d{1,2})$/);
+  if(cm)clsTag=cm[1]+cm[2].toUpperCase()+"-"+cm[3];
+  else if(clsRaw)clsTag=clsRaw;
+  const tags=$("#fTags").value.split(/[,，]/).map(s=>s.trim()).filter(Boolean).filter(t=>!isClassTag(t)).slice(0,5);
+  if(clsTag)tags.unshift(clsTag);
   const desc=$("#fDesc").value.trim();
   const segOn=$("#segGender button.on");
   if(segOn)formGender=segOn.dataset.g;
